@@ -1,8 +1,18 @@
 import { Suspense, lazy, useState } from 'react'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingState } from './components/LoadingState'
 
-const InventoryPage = lazy(() => import('./features/inventory/InventoryPage'))
-const ConfiguratorPage = lazy(() => import('./features/configurator/ConfiguratorPage'))
+const InventoryPage = lazy(() =>
+  import('./features/inventory/InventoryPage').then((module) => ({
+    default: module.InventoryPage,
+  })),
+)
+
+const ConfiguratorPage = lazy(() =>
+  import('./features/configurator/ConfiguratorPage').then((module) => ({
+    default: module.ConfiguratorPage,
+  })),
+)
 
 const PAGES = {
   inventory: 'inventory',
@@ -13,7 +23,7 @@ export default function App() {
   const [page, setPage] = useState(PAGES.inventory)
 
   return (
-    <>
+    <ErrorBoundary>
       <nav className="app-nav" aria-label="Main navigation">
         <div className="app-nav-inner">
           <span className="app-nav-brand">Workshop</span>
@@ -38,6 +48,6 @@ export default function App() {
       <Suspense fallback={<LoadingState label="Loading page…" />}>
         {page === PAGES.configurator ? <ConfiguratorPage /> : <InventoryPage />}
       </Suspense>
-    </>
+    </ErrorBoundary>
   )
 }
