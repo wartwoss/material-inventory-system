@@ -70,6 +70,7 @@ cd backend
 vendor/bin/phpunit --filter MaterialApiTest
 vendor/bin/phpunit --filter DashboardApiTest
 vendor/bin/phpunit --filter FurnitureModelApiTest
+vendor/bin/phpunit --filter ProductionQuoteApiTest
 ```
 
 Current results:
@@ -77,6 +78,7 @@ Current results:
 - `MaterialApiTest`: 13 tests, 41 assertions — OK
 - `DashboardApiTest`: 1 test, 12 assertions — OK
 - `FurnitureModelApiTest`: 4 tests, 17 assertions — OK
+- `ProductionQuoteApiTest`: 9 tests, 35 assertions — OK
 
 ## Frontend
 
@@ -151,6 +153,36 @@ npm run lint
   - Reset-to-defaults action and loading/empty/error states.
 - Visual appearance is driven by an explicit `visual_key` → Three.js material mapping; it is kept separate from inventory calculations.
 
+### Stage 3B — Backend material consumption and production quotes
+
+- Added `POST /api/v1/production/quote` to calculate read-only production quotes.
+- Added `FormulaCalculator` service supporting:
+  - `panel_area_m2`
+  - `solid_volume_m3`
+  - `cabinet_carcass_m3`
+  - `fixed_each`
+  - Unknown formula keys throw an explicit error.
+- Added `ProductionQuoteService` to validate configuration, calculate component consumption, aggregate by material, and compare against current stock.
+- Rounding strategy: component consumption is rounded **up** to 6 decimal places, then multiplied by the production quantity. Aggregated per-material totals are the sum of those rounded component totals.
+- Updated `ModelPartSeeder` with `dimension_axes` hints and `foot_height_mm` for feet.
+- Added `ProductionQuoteApiTest` covering valid quotes, aggregation of shared materials, invalid dimensions, missing parts, incompatible units, unknown formulas, insufficient stock, inactive materials, and no side effects on inventory.
+- Replaced the configurator's dimension number boxes with slider + numeric input.
+- Added a **Quantity** selector and a live quote panel showing component breakdown, aggregated material requirements, stock balances, and sufficiency status.
+- Quote requests are debounced (350 ms) and stale responses are discarded via `AbortController`.
+
+## Consumption formulas and assumptions
+
+| Model | Part | Formula | Notes |
+|---|---|---|---|
+| Table | Top | `panel_area_m2` | Full length × width footprint, times waste factor. Thickness ignored. |
+| Table | Legs | `solid_volume_m3` | Four rectangular prisms of full table height × profile width × profile thickness, times waste factor. Top thickness is not subtracted. |
+| Bedside | Carcass | `cabinet_carcass_m3` | Simplified five-panel box: two sides, top/bottom, back. No shelves, drawers, or internal divisions. |
+| Bedside | Door | `panel_area_m2` | Full front-face area (length × height), times waste factor. Gaps and hardware ignored. |
+| Bedside | Handle | `fixed_each` | Configured count per furniture unit. |
+| Bedside | Feet | `solid_volume_m3` | Four rectangular feet of fixed `foot_height_mm` (60 mm) × profile dims, times waste factor. |
+
+All calculations use BCMath decimal arithmetic. Unlike units are never converted.
+
 ## API endpoints
 
 | Method | Path | Description |
@@ -164,6 +196,27 @@ npm run lint
 | `GET` | `/api/v1/materials/{material}/movements` | Movement history |
 | `GET` | `/api/v1/furniture-models` | List furniture models |
 | `GET` | `/api/v1/furniture-models/{slug}` | Model detail with parts + compatible materials |
+| `POST` | `/api/v1/production/quote` | Read-only consumption and availability quote |
+
+### Example quote request
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/production/quote \
+  -H "Content-Type: application/json" \
+  -d '{
+    "furniture_model_slug": "table",
+    "length_mm": 1200,
+    "width_mm": 700,
+    "height_mm": 740,
+    "quantity": 2,
+    "parts": [
+      {"code": "top", "material_id": 1},
+      {"code": "legs", "material_id": 3}
+    ]
+  }'
+```
+
+Response includes the validated configuration, component-level consumption, aggregated material requirements, available stock, and an overall `is_sufficient` flag.
 
 ## Known environment notes
 
@@ -173,10 +226,14 @@ npm run lint
 - `php artisan serve` is blocked by a Windows environment-block size error, but `php -S` works as a workaround.
 - Browser-level 3D interaction was not verified with automated tools; only the build, lint, API responses, and static bundle contents were checked.
 
-## Remaining work before Stage 3B / Stage 4
+## Remaining work before Stage 4
 
-- Implement `POST /api/v1/production/quote` to calculate per-material consumption using the server-side formula keys and parameters.
-- Implement `POST /api/v1/production-orders/confirm` with idempotency-key handling and atomic stock deduction.
-- Wire the quote result into the configurator UI (consumption estimate, stock-availability feedback).
-- Add feature tests for production quotes and confirmations, including insufficient-stock rollback.
+- Implement `POST /api/v1/production-orders/confirm` with:
+  - idempotency-key handling,
+  - server-side revalidation and recalculation,
+  - row locking in ascending material-ID order,
+  - atomic creation of order, consumption records, balance updates, and negative inventory movements,
+  - 422 on insufficient stock, 409 on conflicting idempotency-key reuse.
+- Add a confirmation UI in the configurator that submits the configuration with an `Idempotency-Key`.
+- Add feature tests for production confirmations, including successful deduction, insufficient-stock rollback, idempotency, and conflicting-key handling.
 - Add end-to-end tests for the full inventory → configure → quote → confirm → inspect balances flow.

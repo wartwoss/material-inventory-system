@@ -31,7 +31,22 @@ export function DimensionControls({ dimensions, constraints, onChange }) {
 
           return (
             <div className="dimension-field" key={field.key}>
-              <label htmlFor={`dim-${field.key}`}>{field.label}</label>
+              <div className="dimension-label-row">
+                <label htmlFor={`dim-${field.key}`}>{field.label}</label>
+                <span className="dim-range muted">
+                  {constraint.min}–{constraint.max} mm
+                </span>
+              </div>
+              <input
+                id={`dim-${field.key}-slider`}
+                type="range"
+                min={constraint.min}
+                max={constraint.max}
+                step={1}
+                value={dimensions[field.key]}
+                onChange={(event) => update(field.key, event.target.value)}
+                aria-label={`${field.label} slider`}
+              />
               <input
                 id={`dim-${field.key}`}
                 type="number"
@@ -41,10 +56,8 @@ export function DimensionControls({ dimensions, constraints, onChange }) {
                 step={1}
                 value={dimensions[field.key]}
                 onChange={(event) => update(field.key, event.target.value)}
+                aria-label={`${field.label} value`}
               />
-              <span className="dim-range muted">
-                {constraint.min}–{constraint.max} mm
-              </span>
             </div>
           )
         })}

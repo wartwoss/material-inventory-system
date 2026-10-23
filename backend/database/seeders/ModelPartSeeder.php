@@ -25,6 +25,7 @@ class ModelPartSeeder extends Seeder
                     'consumption_unit' => 'm2',
                     'formula_key' => 'panel_area_m2',
                     'formula_parameters' => [
+                        'dimension_axes' => ['length', 'width'],
                         'waste_factor' => 1.15,
                     ],
                     'is_configurable' => true,
@@ -37,6 +38,7 @@ class ModelPartSeeder extends Seeder
                     'consumption_unit' => 'm3',
                     'formula_key' => 'solid_volume_m3',
                     'formula_parameters' => [
+                        'height_source' => ['type' => 'dimension', 'axis' => 'height'],
                         'profile_width_mm' => 50,
                         'profile_thickness_mm' => 50,
                         'leg_count' => 4,
@@ -52,7 +54,7 @@ class ModelPartSeeder extends Seeder
                     'name' => 'Carcass',
                     'material_group' => 'wood',
                     'consumption_unit' => 'm3',
-                    'formula_key' => 'solid_volume_m3',
+                    'formula_key' => 'cabinet_carcass_m3',
                     'formula_parameters' => [
                         'panel_thickness_mm' => 18,
                         'waste_factor' => 1.25,
@@ -67,6 +69,7 @@ class ModelPartSeeder extends Seeder
                     'consumption_unit' => 'm2',
                     'formula_key' => 'panel_area_m2',
                     'formula_parameters' => [
+                        'dimension_axes' => ['length', 'height'],
                         'waste_factor' => 1.1,
                     ],
                     'is_configurable' => true,
@@ -91,6 +94,8 @@ class ModelPartSeeder extends Seeder
                     'consumption_unit' => 'm3',
                     'formula_key' => 'solid_volume_m3',
                     'formula_parameters' => [
+                        'height_source' => ['type' => 'parameter', 'key' => 'foot_height_mm'],
+                        'foot_height_mm' => 60,
                         'profile_width_mm' => 40,
                         'profile_thickness_mm' => 40,
                         'leg_count' => 4,
