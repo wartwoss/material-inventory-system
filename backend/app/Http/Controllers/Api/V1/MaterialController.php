@@ -1,0 +1,107 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\AdjustStockRequest;
+use App\Http\Requests\StoreMaterialRequest;
+use App\Http\Requests\UpdateMaterialRequest;
+use App\Models\Material;
+use App\Services\StockAdjustmentService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use RuntimeException;
+
+class MaterialController extends Controller
+{
+    public function __construct(private readonly StockAdjustmentService $stockAdjustmentService)
+    {
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        $query = Material::query()
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $search = $request->input('search');
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('sku', 'like', "%{$search}%");
+            })
+            ->when($request->filled('material_group'), function ($q) use ($request) {
+                $q->where('material_group', $request->input('material_group'));
+            })
+            ->when($request->boolean('low_stock_only'), function ($q) {
+                $q->whereRaw('quantity_on_hand <= COALESCE(reorder_level, -1)');
+            })
+            ->orderBy('name');
+
+        return response()->json($query->paginate($request->input('per_page', 15)));
+    }
+
+    public function store(StoreMaterialRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        if (! isset($data['opening_quantity'])) {
+            $data['opening_quantity'] = '0';
+        }
+
+        $material = $this->stockAdjustmentService->createMaterial($data);
+
+        return response()->json($material->load('inventoryMovements'), 201);
+    }
+
+    public function show(Material $material): JsonResponse
+    {
+        return response()->json($material->load('inventoryMovements'));
+    }
+
+    public function update(UpdateMaterialRequest $request, Material $material): JsonResponse
+    {
+        $data = $request->validated();
+
+        // Prevent direct balance manipulation and unit changes after movements exist.
+        unset($data['quantity_on_hand']);
+
+        if (isset($data['stock_unit']) && $material->inventoryMovements()->exists()) {
+            return response()->json([
+                'message' => 'Cannot change stock unit after transactions exist.',
+            ], 422);
+        }
+
+        $material->update($data);
+
+        return response()->json($material->load('inventoryMovements'));
+    }
+
+    public function adjust(AdjustStockRequest $request, Material $material): JsonResponse
+    {
+        $data = $request->validated();
+
+        try {
+            $material = $this->stockAdjustmentService->adjustStock(
+                $material,
+                (string) $data['quantity'],
+                $data['reason']
+            );
+        } catch (RuntimeException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'material_id' => $material->id,
+                'quantity_on_hand' => $material->quantity_on_hand,
+                'requested_quantity' => $data['quantity'],
+            ], 422);
+        }
+
+        return response()->json($material->load('inventoryMovements'));
+    }
+
+    public function movements(Material $material, Request $request): JsonResponse
+    {
+        $query = $material->inventoryMovements()
+            ->when($request->filled('type'), function ($q) use ($request) {
+                $q->where('movement_type', $request->input('type'));
+            });
+
+        return response()->json($query->paginate($request->input('per_page', 15)));
+    }
+}
