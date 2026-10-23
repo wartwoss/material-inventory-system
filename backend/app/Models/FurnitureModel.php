@@ -16,22 +16,45 @@ class FurnitureModel extends Model
         'name',
         'model_asset_path',
         'is_active',
+        'default_length_mm',
+        'min_length_mm',
+        'max_length_mm',
+        'default_width_mm',
+        'min_width_mm',
+        'max_width_mm',
+        'default_height_mm',
+        'min_height_mm',
+        'max_height_mm',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'default_length_mm' => 'integer',
+            'min_length_mm' => 'integer',
+            'max_length_mm' => 'integer',
+            'default_width_mm' => 'integer',
+            'min_width_mm' => 'integer',
+            'max_width_mm' => 'integer',
+            'default_height_mm' => 'integer',
+            'min_height_mm' => 'integer',
+            'max_height_mm' => 'integer',
         ];
     }
 
     public function modelParts(): HasMany
     {
-        return $this->hasMany(ModelPart::class);
+        return $this->hasMany(ModelPart::class)->orderBy('sort_order');
     }
 
     public function productionOrders(): HasMany
     {
         return $this->hasMany(ProductionOrder::class);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 }

@@ -20,12 +20,16 @@ class ModelPart extends Model
         'consumption_unit',
         'formula_key',
         'formula_parameters',
+        'is_configurable',
+        'sort_order',
     ];
 
     protected function casts(): array
     {
         return [
             'formula_parameters' => 'array',
+            'is_configurable' => 'boolean',
+            'sort_order' => 'integer',
         ];
     }
 
