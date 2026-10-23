@@ -19,7 +19,7 @@ Authentication, multiple warehouses, purchasing, supplier management, pricing, s
 
 - The phrase “type of food” in the original requirements means type of wood or other material; selections are made independently per furniture part.
 - Dimensions are entered and stored as integer millimetres.
-- Each material has one canonical stock unit. The MVP supports square metres (`m2`), cubic metres (`m3`), metres (`m`), and each (`ea`). Conversions between unlike units are out of scope.
+- Each material has one canonical stock unit. The MVP supports square metres (`m2`), cubic metres (`m3`), metres (`m`), each (`ea`), and kilograms (`kg`). Conversions between unlike units are out of scope.
 - Production confirmation immediately consumes stock. It does not reserve stock or model later manufacturing stages.
 - Consumption is a server-defined estimate based on a small set of formulas and recipe parameters, not a manufacturing-grade cut-list optimizer.
 

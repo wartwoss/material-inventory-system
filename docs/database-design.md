@@ -2,7 +2,7 @@
 
 ## Database conventions
 
-Use MySQL with InnoDB, foreign keys, and indexed lookup fields. Entered dimensions are integer millimetres. Inventory and calculated consumption use `DECIMAL(18,6)` quantities; do not use binary floating-point values for stock decisions. Store one canonical stock unit per material: `m2`, `m3`, `m`, or `ea`.
+Use MySQL with InnoDB, foreign keys, and indexed lookup fields. Entered dimensions are integer millimetres. Inventory and calculated consumption use `DECIMAL(18,6)` quantities; do not use binary floating-point values for stock decisions. Store one canonical stock unit per material: `m2`, `m3`, `m`, `ea`, or `kg`.
 
 The current balance on `materials` supports efficient dashboard reads. `inventory_movements` is the audit trail. Every operation that changes a balance must update the balance and add its movement in the same transaction. A reconciliation query/test should verify that opening movements plus later movements equal each current balance.
 
@@ -16,7 +16,7 @@ The current balance on `materials` supports efficient dashboard reads. `inventor
 | `name` | string, required | Display name |
 | `sku` | string, nullable, unique | Optional stock code |
 | `material_group` | string/enum, required | Compatibility group such as wood, ceramic, metal, or upholstery |
-| `stock_unit` | enum/string, required | Canonical unit: `m2`, `m3`, `m`, or `ea` |
+| `stock_unit` | enum/string, required | Canonical unit: `m2`, `m3`, `m`, `ea`, or `kg` |
 | `quantity_on_hand` | `DECIMAL(18,6)`, default 0, check >= 0 | Current material balance |
 | `reorder_level` | `DECIMAL(18,6)`, nullable | Low-stock threshold in `stock_unit` |
 | `visual_key` | string, nullable | Frontend color/texture mapping, not a calculation input |
