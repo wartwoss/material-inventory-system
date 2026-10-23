@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert } from '../../components/Alert'
 import { Button } from '../../components/Button'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { getFurnitureModel, listFurnitureModels } from '../../api/furniture'
-import { quoteConfiguration } from '../../api/production'
+import { confirmProductionOrder, quoteConfiguration } from '../../api/production'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { DimensionControls } from './DimensionControls'
 import { MaterialSelectors } from './MaterialSelectors'
@@ -44,7 +44,46 @@ function buildQuotePayload(modelDetail, dimensions, quantity, partMaterials) {
   }
 }
 
-export function ConfiguratorPage() {
+function generateIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function quoteMatchesConfig(quote, quoteConfig) {
+  if (!quote || !quoteConfig) {
+    return false
+  }
+
+  if (quote.furniture_model?.slug !== quoteConfig.slug) {
+    return false
+  }
+
+  if (
+    quote.configuration.length_mm !== quoteConfig.length ||
+    quote.configuration.width_mm !== quoteConfig.width ||
+    quote.configuration.height_mm !== quoteConfig.height ||
+    quote.configuration.quantity !== quoteConfig.quantity
+  ) {
+    return false
+  }
+
+  const quoteMaterialIds = new Set(
+    quote.components.map((component) => `${component.part_code}:${component.material_id}`),
+  )
+
+  for (const [code, materialId] of Object.entries(quoteConfig.materials)) {
+    if (!quoteMaterialIds.has(`${code}:${materialId}`)) {
+      return false
+    }
+  }
+
+  return true
+}
+
+export function ConfiguratorPage({ onRefreshInventory }) {
   const [models, setModels] = useState([])
   const [selectedSlug, setSelectedSlug] = useState(null)
   const [modelDetail, setModelDetail] = useState(null)
@@ -58,6 +97,30 @@ export function ConfiguratorPage() {
   const [quote, setQuote] = useState(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [quoteError, setQuoteError] = useState('')
+
+  const [idempotencyKey, setIdempotencyKey] = useState(() => generateIdempotencyKey())
+  const [isConfirming, setIsConfirming] = useState(false)
+  const [confirmationSuccess, setConfirmationSuccess] = useState(null)
+  const [confirmationError, setConfirmationError] = useState('')
+
+  const refreshQuote = useCallback(
+    async (payload) => {
+      setQuoteLoading(true)
+      setQuoteError('')
+
+      try {
+        const response = await quoteConfiguration(payload)
+        setQuote(response)
+      } catch (requestError) {
+        if (requestError.name !== 'AbortError') {
+          setQuoteError(requestError.message || 'Could not calculate quote.')
+        }
+      } finally {
+        setQuoteLoading(false)
+      }
+    },
+    [],
+  )
 
   useEffect(() => {
     const controller = new AbortController()
@@ -111,6 +174,8 @@ export function ConfiguratorPage() {
     setError('')
     setQuote(null)
     setQuoteError('')
+    setConfirmationSuccess(null)
+    setConfirmationError('')
 
     getFurnitureModel(selectedSlug, controller.signal)
       .then((response) => {
@@ -212,6 +277,44 @@ export function ConfiguratorPage() {
     }
   }, [debouncedQuoteConfig, modelDetail, dimensions, quantity, partMaterials])
 
+  useEffect(() => {
+    if (quoteConfig) {
+      setIdempotencyKey(generateIdempotencyKey())
+    }
+  }, [quoteConfig])
+
+  async function handleConfirm() {
+    if (!modelDetail || !quote || quoteLoading || isConfirming) {
+      return
+    }
+
+    if (!quote.is_sufficient || !quoteMatchesConfig(quote, quoteConfig)) {
+      return
+    }
+
+    setIsConfirming(true)
+    setConfirmationSuccess(null)
+    setConfirmationError('')
+
+    try {
+      const payload = buildQuotePayload(modelDetail, dimensions, quantity, partMaterials)
+      const result = await confirmProductionOrder(payload, idempotencyKey)
+
+      setConfirmationSuccess(result)
+      onRefreshInventory?.()
+
+      const refreshedModel = await getFurnitureModel(selectedSlug)
+      setModelDetail(refreshedModel)
+      await refreshQuote(payload)
+    } catch (requestError) {
+      if (requestError.name !== 'AbortError') {
+        setConfirmationError(requestError.message || 'Could not place production order.')
+      }
+    } finally {
+      setIsConfirming(false)
+    }
+  }
+
   function handleReset() {
     if (!modelDetail) {
       return
@@ -222,6 +325,8 @@ export function ConfiguratorPage() {
     setPartMaterials(buildDefaultSelections(modelDetail.parts))
     setQuote(null)
     setQuoteError('')
+    setConfirmationSuccess(null)
+    setConfirmationError('')
   }
 
   if (loadingList) {
@@ -257,6 +362,15 @@ export function ConfiguratorPage() {
     ? modelDetail.parts.every((part) => partMaterials[part.code])
     : false
 
+  const quoteIsCurrent = quoteMatchesConfig(quote, quoteConfig)
+  const canConfirm =
+    !isConfirming &&
+    !quoteLoading &&
+    allPartsHaveMaterial &&
+    quote != null &&
+    quote.is_sufficient &&
+    quoteIsCurrent
+
   return (
     <div className="configurator-page">
       <header className="configurator-header">
@@ -273,6 +387,20 @@ export function ConfiguratorPage() {
       {error ? (
         <Alert tone="warning" onDismiss={() => setError('')}>
           {error}
+        </Alert>
+      ) : null}
+
+      {confirmationSuccess ? (
+        <Alert tone="success" title="Production order confirmed" onDismiss={() => setConfirmationSuccess(null)}>
+          Order #{confirmationSuccess.id} for {confirmationSuccess.configuration.quantity} unit
+          {confirmationSuccess.configuration.quantity === 1 ? '' : 's'} of{' '}
+          {confirmationSuccess.furniture_model.name} was created.
+        </Alert>
+      ) : null}
+
+      {confirmationError ? (
+        <Alert tone="error" title="Could not place order" onDismiss={() => setConfirmationError('')}>
+          {confirmationError}
         </Alert>
       ) : null}
 
@@ -324,6 +452,23 @@ export function ConfiguratorPage() {
               ) : null}
 
               <QuotePanel quote={quote} loading={quoteLoading} error={quoteError} />
+
+              {allPartsHaveMaterial && quote && !quoteLoading ? (
+                <div className="confirm-actions">
+                  <Button
+                    variant="primary"
+                    onClick={handleConfirm}
+                    disabled={!canConfirm || isConfirming}
+                  >
+                    {isConfirming ? 'Placing order…' : 'Place Production Order'}
+                  </Button>
+                  {!quote.is_sufficient ? (
+                    <span className="muted">Insufficient stock to confirm this order.</span>
+                  ) : !quoteIsCurrent ? (
+                    <span className="muted">Quote is stale. Waiting for an updated quote.</span>
+                  ) : null}
+                </div>
+              ) : null}
             </>
           )}
         </section>

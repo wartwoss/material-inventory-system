@@ -1685,6 +1685,17 @@ h1 {
   }
 }
 
+.confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.confirm-actions .btn {
+  width: 100%;
+}
+
 @media (max-width: 560px) {
   .configurator-header {
     flex-direction: column;

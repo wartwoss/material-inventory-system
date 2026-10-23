@@ -19,7 +19,7 @@ import { MovementHistoryModal } from './MovementHistoryModal'
 import { RecentActivity } from './RecentActivity'
 import { SummaryCards } from './SummaryCards'
 
-export function InventoryPage() {
+export function InventoryPage({ refreshKey: externalRefreshKey = 0 }) {
   const [dashboard, setDashboard] = useState(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
   const [dashboardError, setDashboardError] = useState('')
@@ -74,7 +74,7 @@ export function InventoryPage() {
       active = false
       controller.abort()
     }
-  }, [refreshKey])
+  }, [refreshKey, externalRefreshKey])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -125,7 +125,7 @@ export function InventoryPage() {
       active = false
       controller.abort()
     }
-  }, [debouncedSearch, group, lowStockOnly, page, perPage, refreshKey])
+  }, [debouncedSearch, group, lowStockOnly, page, perPage, refreshKey, externalRefreshKey])
 
   useEffect(() => {
     if (!notice) {
@@ -310,7 +310,7 @@ export function InventoryPage() {
       </div>
 
       <footer className="app-footer">
-        <span>Stage 2 — inventory management</span>
+        <span>Stage 4 — inventory + production orders</span>
         <span className="muted">
           Balances are authoritative from the Laravel API; this view never edits stock optimistically.
         </span>

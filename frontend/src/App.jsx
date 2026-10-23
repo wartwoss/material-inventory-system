@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from 'react'
+import { Suspense, lazy, useCallback, useState } from 'react'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingState } from './components/LoadingState'
 
@@ -21,6 +21,11 @@ const PAGES = {
 
 export default function App() {
   const [page, setPage] = useState(PAGES.inventory)
+  const [inventoryRefreshKey, setInventoryRefreshKey] = useState(0)
+
+  const refreshInventory = useCallback(() => {
+    setInventoryRefreshKey((value) => value + 1)
+  }, [])
 
   return (
     <ErrorBoundary>
@@ -46,7 +51,11 @@ export default function App() {
         </div>
       </nav>
       <Suspense fallback={<LoadingState label="Loading page…" />}>
-        {page === PAGES.configurator ? <ConfiguratorPage /> : <InventoryPage />}
+        {page === PAGES.configurator ? (
+          <ConfiguratorPage onRefreshInventory={refreshInventory} />
+        ) : (
+          <InventoryPage refreshKey={inventoryRefreshKey} />
+        )}
       </Suspense>
     </ErrorBoundary>
   )

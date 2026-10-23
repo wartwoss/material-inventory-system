@@ -71,6 +71,7 @@ vendor/bin/phpunit --filter MaterialApiTest
 vendor/bin/phpunit --filter DashboardApiTest
 vendor/bin/phpunit --filter FurnitureModelApiTest
 vendor/bin/phpunit --filter ProductionQuoteApiTest
+vendor/bin/phpunit --filter ProductionOrderConfirmApiTest
 ```
 
 Current results:
@@ -79,6 +80,7 @@ Current results:
 - `DashboardApiTest`: 1 test, 12 assertions — OK
 - `FurnitureModelApiTest`: 4 tests, 17 assertions — OK
 - `ProductionQuoteApiTest`: 9 tests, 35 assertions — OK
+- `ProductionOrderConfirmApiTest`: 8 tests, 49 assertions — OK
 
 ## Frontend
 
@@ -170,6 +172,28 @@ npm run lint
 - Added a **Quantity** selector and a live quote panel showing component breakdown, aggregated material requirements, stock balances, and sufficiency status.
 - Quote requests are debounced (350 ms) and stale responses are discarded via `AbortController`.
 
+### Stage 4 — Production order confirmation and atomic inventory deduction
+
+- Added `POST /api/v1/production-orders/confirm` to create production orders and deduct stock atomically.
+- Added `ProductionConfirmationService` that:
+  - Validates the `Idempotency-Key` header and persists it on `production_orders` with a unique constraint.
+  - Reuses `ProductionQuoteService` for server-side recalculation instead of trusting client quantities.
+  - Locks affected `materials` rows in ascending material-ID order using `lockForUpdate()`.
+  - Rechecks stock after locking and returns `422` if any material is insufficient.
+  - Creates the production order, component-level `production_consumptions`, negative `inventory_movements`, and updates material balances inside a single database transaction.
+  - Detects idempotency-key races via the unique constraint and returns either the existing order (same payload, `200`) or a `409` conflict (different payload).
+- Added `ProductionOrderConfirmApiTest` covering:
+  - Successful confirmation with order/consumption/movement creation and balance updates.
+  - Idempotent retry with the same key and payload.
+  - Conflicting key reuse with a different payload (`409`).
+  - Insufficient-stock rollback (no order, no consumption, no movement, balances unchanged).
+  - Invalid dimensions and incompatible material rejection.
+  - Bedside cabinet aggregation of shared materials into a single inventory movement.
+  - Missing idempotency-key rejection.
+- Wired the configurator to show a **Place Production Order** button, enabled only when the current quote is valid, current, and reports sufficient stock.
+- The frontend generates one idempotency key per configuration and disables the button during submission to prevent double-clicks.
+- After a successful confirmation the UI refreshes the model detail, recalculates the quote, and signals the inventory page to refresh its dashboard and material list.
+
 ## Consumption formulas and assumptions
 
 | Model | Part | Formula | Notes |
@@ -197,6 +221,7 @@ All calculations use BCMath decimal arithmetic. Unlike units are never converted
 | `GET` | `/api/v1/furniture-models` | List furniture models |
 | `GET` | `/api/v1/furniture-models/{slug}` | Model detail with parts + compatible materials |
 | `POST` | `/api/v1/production/quote` | Read-only consumption and availability quote |
+| `POST` | `/api/v1/production-orders/confirm` | Confirm production order and deduct stock |
 
 ### Example quote request
 
@@ -218,6 +243,31 @@ curl -X POST http://127.0.0.1:8000/api/v1/production/quote \
 
 Response includes the validated configuration, component-level consumption, aggregated material requirements, available stock, and an overall `is_sufficient` flag.
 
+### Example confirmation request
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/production-orders/confirm \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{
+    "furniture_model_slug": "table",
+    "length_mm": 1200,
+    "width_mm": 700,
+    "height_mm": 740,
+    "quantity": 1,
+    "parts": [
+      {"code": "top", "material_id": 1},
+      {"code": "legs", "material_id": 3}
+    ]
+  }'
+```
+
+- `201 Created` is returned for a new order.
+- `200 OK` is returned when the same key + payload is replayed.
+- `409 Conflict` is returned when the same key is reused with a different payload.
+- `422 Unprocessable Content` is returned for invalid input or insufficient stock.
+- The idempotency key is required in the `Idempotency-Key` header.
+
 ## Known environment notes
 
 - The local dev database is SQLite because no MySQL server was available in this environment.
@@ -226,14 +276,9 @@ Response includes the validated configuration, component-level consumption, aggr
 - `php artisan serve` is blocked by a Windows environment-block size error, but `php -S` works as a workaround.
 - Browser-level 3D interaction was not verified with automated tools; only the build, lint, API responses, and static bundle contents were checked.
 
-## Remaining work before Stage 4
+## Remaining work / limitations
 
-- Implement `POST /api/v1/production-orders/confirm` with:
-  - idempotency-key handling,
-  - server-side revalidation and recalculation,
-  - row locking in ascending material-ID order,
-  - atomic creation of order, consumption records, balance updates, and negative inventory movements,
-  - 422 on insufficient stock, 409 on conflicting idempotency-key reuse.
-- Add a confirmation UI in the configurator that submits the configuration with an `Idempotency-Key`.
-- Add feature tests for production confirmations, including successful deduction, insufficient-stock rollback, idempotency, and conflicting-key handling.
-- Add end-to-end tests for the full inventory → configure → quote → confirm → inspect balances flow.
+- Concurrency safety under MySQL/InnoDB has not been verified. SQLite tests pass, but true row-locking and unique-constraint race behaviour must be validated against MySQL with concurrent requests.
+- No production-order listing, cancellation, or status transitions beyond `confirmed`.
+- No notification or reorder workflow when confirmation drives a material below its reorder level.
+- End-to-end browser tests for the full inventory → configure → quote → confirm → inspect balances flow are not implemented.

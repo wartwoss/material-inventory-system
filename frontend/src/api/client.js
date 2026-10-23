@@ -19,7 +19,7 @@ function parseJson(text) {
   }
 }
 
-export async function request(path, { method = 'GET', body, signal } = {}) {
+export async function request(path, { method = 'GET', body, headers = {}, signal } = {}) {
   let response
 
   try {
@@ -28,6 +28,7 @@ export async function request(path, { method = 'GET', body, signal } = {}) {
       headers: {
         Accept: 'application/json',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...headers,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal,
