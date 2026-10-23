@@ -28,6 +28,9 @@ class UpdateMaterialRequest extends FormRequest
             'stock_unit' => ['sometimes', 'required', 'string', Rule::in(StockAdjustmentService::SUPPORTED_UNITS)],
             'reorder_level' => ['nullable', 'numeric', 'min:0'],
             'visual_key' => ['nullable', 'string', 'max:255'],
+            'color_hex' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'texture' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
+            'remove_texture' => ['nullable', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

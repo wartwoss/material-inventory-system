@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Material;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class MaterialApiTest extends TestCase
@@ -203,22 +205,182 @@ class MaterialApiTest extends TestCase
             ->assertJsonPath('data.0.movement_type', 'manual_adjustment');
     }
 
-    public function test_movement_history_is_immutable(): void
-    {
-        $material = Material::factory()->create(['quantity_on_hand' => '5.000000']);
-        $movement = $material->inventoryMovements()->create([
-            'movement_type' => 'manual_adjustment',
-            'quantity_delta' => '5.000000',
-            'balance_after' => '5.000000',
-            'reason' => 'Initial top-up',
-        ]);
+  public function test_movement_history_is_immutable(): void
+  {
+    $material = Material::factory()->create(['quantity_on_hand' => '5.000000']);
+    $movement = $material->inventoryMovements()->create([
+      'movement_type' => 'manual_adjustment',
+      'quantity_delta' => '5.000000',
+      'balance_after' => '5.000000',
+      'reason' => 'Initial top-up',
+    ]);
 
-        // No update/delete routes exist, so HTTP methods other than GET should 404.
-        $this->putJson("/api/v1/materials/{$material->id}/movements/{$movement->id}", [
-            'quantity_delta' => 999,
-        ])->assertNotFound();
+    // No update/delete routes exist, so HTTP methods other than GET should 404.
+    $this->putJson("/api/v1/materials/{$material->id}/movements/{$movement->id}", [
+      'quantity_delta' => 999,
+    ])->assertNotFound();
 
-        $this->deleteJson("/api/v1/materials/{$material->id}/movements/{$movement->id}")
-            ->assertNotFound();
-    }
+    $this->deleteJson("/api/v1/materials/{$material->id}/movements/{$movement->id}")
+      ->assertNotFound();
+  }
+
+  public function test_can_create_material_with_color_and_texture(): void
+  {
+    Storage::fake('public');
+
+    $file = UploadedFile::fake()->image('oak.jpg', 200, 200);
+
+    $response = $this->call('POST', '/api/v1/materials', [
+      'name' => 'Textured oak',
+      'material_group' => 'wood',
+      'stock_unit' => 'm2',
+      'color_hex' => '#8B5A2B',
+    ], [], ['texture' => $file], ['HTTP_ACCEPT' => 'application/json']);
+
+    $response->assertCreated();
+
+    $material = Material::where('name', 'Textured oak')->firstOrFail();
+    $this->assertSame('#8B5A2B', $material->color_hex);
+    $this->assertNotNull($material->texture_path);
+    $this->assertStringStartsWith('textures/', $material->texture_path);
+    $this->assertNotNull($material->texture_url);
+    Storage::disk('public')->assertExists($material->texture_path);
+  }
+
+  public function test_can_update_material_color(): void
+  {
+    $material = Material::factory()->create(['color_hex' => '#ffffff']);
+
+    $response = $this->putJson("/api/v1/materials/{$material->id}", [
+      'color_hex' => '#123456',
+    ]);
+
+    $response->assertOk()
+      ->assertJsonPath('color_hex', '#123456');
+
+    $this->assertDatabaseHas('materials', [
+      'id' => $material->id,
+      'color_hex' => '#123456',
+    ]);
+  }
+
+  public function test_invalid_color_is_rejected(): void
+  {
+    $response = $this->postJson('/api/v1/materials', [
+      'name' => 'Bad color material',
+      'material_group' => 'wood',
+      'stock_unit' => 'm2',
+      'color_hex' => 'not-a-color',
+    ]);
+
+    $response->assertUnprocessable()
+      ->assertJsonValidationErrors(['color_hex']);
+  }
+
+  public function test_invalid_texture_type_is_rejected(): void
+  {
+    Storage::fake('public');
+
+    $file = UploadedFile::fake()->create('document.pdf', 100, 'application/pdf');
+
+    $response = $this->call('POST', '/api/v1/materials', [
+      'name' => 'Bad texture material',
+      'material_group' => 'wood',
+      'stock_unit' => 'm2',
+    ], [], ['texture' => $file], ['HTTP_ACCEPT' => 'application/json']);
+
+    $response->assertUnprocessable()
+      ->assertJsonValidationErrors(['texture']);
+
+    $this->assertDatabaseMissing('materials', [
+      'name' => 'Bad texture material',
+    ]);
+  }
+
+  public function test_oversized_texture_is_rejected(): void
+  {
+    Storage::fake('public');
+
+    $file = UploadedFile::fake()->image('huge.jpg', 4000, 4000)->size(6000);
+
+    $response = $this->call('POST', '/api/v1/materials', [
+      'name' => 'Huge texture material',
+      'material_group' => 'wood',
+      'stock_unit' => 'm2',
+    ], [], ['texture' => $file], ['HTTP_ACCEPT' => 'application/json']);
+
+    $response->assertUnprocessable()
+      ->assertJsonValidationErrors(['texture']);
+  }
+
+  public function test_updating_without_texture_preserves_existing_texture(): void
+  {
+    Storage::fake('public');
+
+    $file = UploadedFile::fake()->image('oak.jpg', 200, 200);
+    $material = Material::factory()->create([
+      'name' => 'Preserved texture',
+      'texture_path' => $file->store('textures', 'public'),
+    ]);
+
+    $originalPath = $material->texture_path;
+
+    $this->putJson("/api/v1/materials/{$material->id}", [
+      'name' => 'Updated name',
+    ])->assertOk();
+
+    $material->refresh();
+    $this->assertSame($originalPath, $material->texture_path);
+    $this->assertDatabaseHas('materials', [
+      'id' => $material->id,
+      'texture_path' => $originalPath,
+    ]);
+    Storage::disk('public')->assertExists($originalPath);
+  }
+
+  public function test_can_replace_texture(): void
+  {
+    Storage::fake('public');
+
+    $oldFile = UploadedFile::fake()->image('old.jpg', 200, 200);
+    $material = Material::factory()->create([
+      'texture_path' => $oldFile->store('textures', 'public'),
+    ]);
+
+    $oldPath = $material->texture_path;
+
+    $newFile = UploadedFile::fake()->image('new.png', 300, 300);
+
+    $response = $this->call('POST', "/api/v1/materials/{$material->id}", [
+      '_method' => 'PUT',
+    ], [], ['texture' => $newFile], ['HTTP_ACCEPT' => 'application/json']);
+
+    $response->assertOk();
+
+    $material->refresh();
+    $this->assertNotNull($material->texture_path);
+    $this->assertNotSame($oldPath, $material->texture_path);
+    Storage::disk('public')->assertExists($material->texture_path);
+    Storage::disk('public')->assertMissing($oldPath);
+  }
+
+  public function test_can_remove_texture(): void
+  {
+    Storage::fake('public');
+
+    $file = UploadedFile::fake()->image('oak.jpg', 200, 200);
+    $material = Material::factory()->create([
+      'texture_path' => $file->store('textures', 'public'),
+    ]);
+
+    $path = $material->texture_path;
+
+    $this->putJson("/api/v1/materials/{$material->id}", [
+      'remove_texture' => true,
+    ])->assertOk();
+
+    $material->refresh();
+    $this->assertNull($material->texture_path);
+    Storage::disk('public')->assertMissing($path);
+  }
 }

@@ -76,11 +76,12 @@ vendor/bin/phpunit --filter ProductionOrderConfirmApiTest
 
 Current results:
 
-- `MaterialApiTest`: 13 tests, 41 assertions — OK
+- `MaterialApiTest`: 21 tests, 72 assertions — OK
 - `DashboardApiTest`: 1 test, 12 assertions — OK
 - `FurnitureModelApiTest`: 4 tests, 17 assertions — OK
 - `ProductionQuoteApiTest`: 9 tests, 35 assertions — OK
 - `ProductionOrderConfirmApiTest`: 8 tests, 49 assertions — OK
+- Frontend unit tests: 9 tests — OK
 
 ## Frontend
 
@@ -115,7 +116,14 @@ npm run build
 npm run lint
 ```
 
-`npm run build` completes successfully. `npm run lint` reports a small number of `set-state-in-effect` warnings in data-fetching effects; there are 0 lint errors.
+`npm run build` completes successfully. `npm run lint` reports `set-state-in-effect` warnings in data-fetching effects; there are 0 lint errors. `npm test` runs the Vitest suite.
+
+```bash
+cd frontend
+npm run build
+npm run lint
+npm test
+```
 
 ## Implemented so far
 
@@ -193,6 +201,29 @@ npm run lint
 - Wired the configurator to show a **Place Production Order** button, enabled only when the current quote is valid, current, and reports sufficient stock.
 - The frontend generates one idempotency key per configuration and disables the button during submission to prevent double-clicks.
 - After a successful confirmation the UI refreshes the model detail, recalculates the quote, and signals the inventory page to refresh its dashboard and material list.
+
+### Stage 5A — Material appearance system + configurator layout improvement
+
+- Added `color_hex` and `texture_path` to `materials` via an additive migration.
+- Added a backfill migration so existing seeded materials receive a default `color_hex` derived from their `visual_key`.
+- Updated `StoreMaterialRequest`/`UpdateMaterialRequest` to validate `color_hex` and `texture` (JPEG/PNG/WebP, max 5 MB).
+- Updated `MaterialController` to store uploaded textures on the `public` disk under `textures/`, replace textures safely, and remove old files only after a successful update.
+- Added a `texture_url` accessor to the `Material` model so every material API response includes a public URL.
+- Updated `FurnitureModelController::show` to expose `color_hex` and `texture_url` in the list of compatible materials.
+- Updated `MaterialFormModal` with:
+  - A color picker synchronized with a hex text input.
+  - Texture file upload, preview, replace, and remove controls.
+  - FormData submission so images upload correctly.
+- Updated `frontend/src/api/client.js` to avoid setting `Content-Type: application/json` when the body is a `FormData`.
+- Replaced the configurator page layout:
+  - Main workspace: model selector bar, 3D preview, dimension controls directly underneath.
+  - Side panel: material selectors, quantity, quote panel (material requirements + component breakdown), and Place Production Order.
+  - Responsive stacking on narrow screens.
+- Rewrote `visualMaterials.js`:
+  - `getMaterialProps` now prefers `color_hex`, then `visual_key`, then material group fallback.
+  - Added `usePartMaterial(material, repeatScale)` hook that loads textures asynchronously, caches them, repeats them based on part size, and disposes per-part materials on change/unmount.
+- Updated `TableModel` and `BedsideModel` to use `usePartMaterial` with size-appropriate repeat scales.
+- Added Vitest + `@testing-library/react` + jsdom and frontend tests for color/texture controls and `getMaterialProps`.
 
 ## Consumption formulas and assumptions
 
@@ -275,6 +306,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/production-orders/confirm \
 - The `database/database.sqlite` file is ignored by Git; regenerate it locally with `php artisan migrate --seed`.
 - `php artisan serve` is blocked by a Windows environment-block size error, but `php -S` works as a workaround.
 - Browser-level 3D interaction was not verified with automated tools; only the build, lint, API responses, and static bundle contents were checked.
+- Texture URLs are generated from `APP_URL`. For local development `APP_URL` should point at the API host (e.g. `http://127.0.0.1:8000`). On first setup run `php artisan storage:link` so `public/storage` serves `storage/app/public`.
 
 ## Remaining work / limitations
 
@@ -282,3 +314,5 @@ curl -X POST http://127.0.0.1:8000/api/v1/production-orders/confirm \
 - No production-order listing, cancellation, or status transitions beyond `confirmed`.
 - No notification or reorder workflow when confirmation drives a material below its reorder level.
 - End-to-end browser tests for the full inventory → configure → quote → confirm → inspect balances flow are not implemented.
+- Wood texture repeat scaling is a simple heuristic; it is not a physically accurate UV mapping.
+- Full visual verification of the new layout and textured materials in a real browser was not performed.

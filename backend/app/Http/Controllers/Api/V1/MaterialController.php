@@ -10,6 +10,8 @@ use App\Models\Material;
 use App\Services\StockAdjustmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 class MaterialController extends Controller
@@ -45,6 +47,12 @@ class MaterialController extends Controller
             $data['opening_quantity'] = '0';
         }
 
+        if ($request->hasFile('texture')) {
+            $data['texture_path'] = $request->file('texture')->store('textures', 'public');
+        }
+
+        unset($data['texture']);
+
         $material = $this->stockAdjustmentService->createMaterial($data);
 
         return response()->json($material->load('inventoryMovements'), 201);
@@ -68,9 +76,35 @@ class MaterialController extends Controller
             ], 422);
         }
 
-        $material->update($data);
+        $oldTexturePath = $material->texture_path;
+        $newTexturePath = null;
 
-        return response()->json($material->load('inventoryMovements'));
+        if ($request->hasFile('texture')) {
+            $newTexturePath = $request->file('texture')->store('textures', 'public');
+            $data['texture_path'] = $newTexturePath;
+        } elseif ($request->boolean('remove_texture')) {
+            $data['texture_path'] = null;
+        }
+
+        unset($data['texture']);
+
+        try {
+            DB::transaction(function () use ($material, $data) {
+                $material->update($data);
+            });
+        } catch (\Throwable $e) {
+            if ($newTexturePath) {
+                Storage::disk('public')->delete($newTexturePath);
+            }
+
+            throw $e;
+        }
+
+        if (($request->hasFile('texture') || $request->boolean('remove_texture')) && $oldTexturePath) {
+            Storage::disk('public')->delete($oldTexturePath);
+        }
+
+        return response()->json($material->fresh()->load('inventoryMovements'));
     }
 
     public function adjust(AdjustStockRequest $request, Material $material): JsonResponse

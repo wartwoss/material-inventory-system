@@ -22,15 +22,17 @@ function parseJson(text) {
 export async function request(path, { method = 'GET', body, headers = {}, signal } = {}) {
   let response
 
+  const isFormData = body instanceof FormData
+
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers: {
         Accept: 'application/json',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(body !== undefined && !isFormData ? { 'Content-Type': 'application/json' } : {}),
         ...headers,
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
       signal,
     })
   } catch (error) {

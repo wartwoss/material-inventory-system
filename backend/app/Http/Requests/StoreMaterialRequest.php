@@ -27,6 +27,8 @@ class StoreMaterialRequest extends FormRequest
             'opening_quantity' => ['nullable', 'numeric', 'min:0'],
             'reorder_level' => ['nullable', 'numeric', 'min:0'],
             'visual_key' => ['nullable', 'string', 'max:255'],
+            'color_hex' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'texture' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }

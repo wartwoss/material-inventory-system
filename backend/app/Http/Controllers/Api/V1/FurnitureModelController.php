@@ -57,6 +57,8 @@ class FurnitureModelController extends Controller
                     'stock_unit',
                     'quantity_on_hand',
                     'visual_key',
+                    'color_hex',
+                    'texture_path',
                     'is_active',
                 ]);
 

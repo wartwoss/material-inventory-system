@@ -22,6 +22,8 @@ class MaterialFactory extends Factory
             'quantity_on_hand' => '0.000000',
             'reorder_level' => null,
             'visual_key' => null,
+            'color_hex' => null,
+            'texture_path' => null,
             'is_active' => true,
         ];
     }

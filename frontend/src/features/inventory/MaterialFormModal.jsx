@@ -14,7 +14,22 @@ const EMPTY_FORM = {
   opening_quantity: '',
   reorder_level: '',
   visual_key: '',
+  color_hex: '#e5e5e5',
+  texture_file: null,
+  remove_texture: false,
   is_active: true,
+}
+
+function isValidHex(value) {
+  return /^#[0-9A-Fa-f]{6}$/.test(value)
+}
+
+function normalizeHex(value) {
+  const trimmed = String(value ?? '').trim()
+  if (!trimmed.startsWith('#') && /^[0-9A-Fa-f]{6}$/.test(trimmed)) {
+    return `#${trimmed}`
+  }
+  return trimmed
 }
 
 function toForm(material) {
@@ -29,6 +44,9 @@ function toForm(material) {
         ? ''
         : String(material.reorder_level),
     visual_key: material.visual_key ?? '',
+    color_hex: material.color_hex || '#e5e5e5',
+    texture_file: null,
+    remove_texture: false,
     is_active: Boolean(material.is_active),
   }
 }
@@ -47,6 +65,9 @@ export function MaterialFormModal({ mode, material, groups, onClose, onSubmit })
     loading: isEdit,
     hasMovements: false,
   })
+  const [texturePreview, setTexturePreview] = useState(
+    isEdit ? material.texture_url ?? null : null,
+  )
 
   useEffect(() => {
     if (!isEdit) {
@@ -72,6 +93,14 @@ export function MaterialFormModal({ mode, material, groups, onClose, onSubmit })
     }
   }, [isEdit, material])
 
+  useEffect(() => {
+    return () => {
+      if (texturePreview && texturePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(texturePreview)
+      }
+    }
+  }, [texturePreview])
+
   const groupSuggestions = useMemo(() => {
     const values = new Set([
       ...MATERIAL_GROUP_SUGGESTIONS,
@@ -85,6 +114,35 @@ export function MaterialFormModal({ mode, material, groups, onClose, onSubmit })
   function update(field, value) {
     setForm((previous) => ({ ...previous, [field]: value }))
     setErrors((previous) => ({ ...previous, [field]: undefined }))
+  }
+
+  function handleColorChange(value) {
+    const hex = normalizeHex(value)
+    update('color_hex', isValidHex(hex) ? hex : form.color_hex)
+  }
+
+  function handleTextureSelect(file) {
+    if (!file) {
+      return
+    }
+
+    if (texturePreview && texturePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(texturePreview)
+    }
+
+    update('texture_file', file)
+    update('remove_texture', false)
+    setTexturePreview(URL.createObjectURL(file))
+  }
+
+  function handleRemoveTexture() {
+    if (texturePreview && texturePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(texturePreview)
+    }
+
+    update('texture_file', null)
+    update('remove_texture', true)
+    setTexturePreview(null)
   }
 
   function validate() {
@@ -110,6 +168,10 @@ export function MaterialFormModal({ mode, material, groups, onClose, onSubmit })
       next.reorder_level = 'Enter a non-negative number with up to 6 decimals.'
     }
 
+    if (form.color_hex && !isValidHex(form.color_hex)) {
+      next.color_hex = 'Enter a valid hex color such as #8B5A2B.'
+    }
+
     return next
   }
 
@@ -126,19 +188,32 @@ export function MaterialFormModal({ mode, material, groups, onClose, onSubmit })
     setFormError('')
     setErrors({})
 
-    const payload = {
-      name: form.name.trim(),
-      sku: form.sku.trim() || null,
-      material_group: form.material_group.trim(),
-      stock_unit: form.stock_unit,
-      reorder_level: form.reorder_level === '' ? null : String(form.reorder_level),
-      visual_key: form.visual_key.trim() || null,
-      is_active: form.is_active,
-    }
+    const payload = new FormData()
+    payload.append('name', form.name.trim())
+    payload.append('sku', form.sku.trim() || '')
+    payload.append('material_group', form.material_group.trim())
+    payload.append('stock_unit', form.stock_unit)
+    payload.append(
+      'reorder_level',
+      form.reorder_level === '' ? '' : String(form.reorder_level),
+    )
+    payload.append('visual_key', form.visual_key.trim())
+    payload.append('color_hex', form.color_hex)
+    payload.append('is_active', form.is_active ? '1' : '0')
 
     if (!isEdit) {
-      payload.opening_quantity =
-        form.opening_quantity === '' ? 0 : String(form.opening_quantity)
+      payload.append(
+        'opening_quantity',
+        form.opening_quantity === '' ? '0' : String(form.opening_quantity),
+      )
+    }
+
+    if (form.texture_file) {
+      payload.append('texture', form.texture_file)
+    }
+
+    if (isEdit && form.remove_texture) {
+      payload.append('remove_texture', '1')
     }
 
     try {
@@ -328,6 +403,71 @@ export function MaterialFormModal({ mode, material, groups, onClose, onSubmit })
               </label>
             )}
           </FormField>
+        </div>
+
+        <div className="form-section">
+          <h3>Appearance</h3>
+          <p className="field-hint">
+            Choose a solid color. Optionally upload a texture image; the color is used as a fallback.
+          </p>
+
+          <div className="appearance-grid">
+            <FormField
+              label="Color"
+              required
+              error={errors.color_hex}
+              hint="Solid color used when no texture is set."
+            >
+              {(props) => (
+                <div className="color-field">
+                  <input
+                    {...props}
+                    type="color"
+                    value={isValidHex(form.color_hex) ? form.color_hex : '#e5e5e5'}
+                    onChange={(event) => handleColorChange(event.target.value)}
+                  />
+                  <input
+                    type="text"
+                    value={form.color_hex}
+                    onChange={(event) => handleColorChange(event.target.value)}
+                    maxLength={7}
+                    placeholder="#e5e5e5"
+                    aria-label="Hex color"
+                  />
+                </div>
+              )}
+            </FormField>
+
+            <FormField
+              label="Texture image"
+              error={errors.texture}
+              hint="JPEG, PNG, or WebP up to 5 MB. Optional."
+            >
+              {(props) => (
+                <div className="texture-field">
+                  <input
+                    {...props}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => handleTextureSelect(event.target.files?.[0] ?? null)}
+                  />
+                  {texturePreview ? (
+                    <div className="texture-preview">
+                      <img src={texturePreview} alt="Texture preview" />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleRemoveTexture}
+                      >
+                        Remove texture
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </FormField>
+          </div>
         </div>
 
         <div className="form-actions">

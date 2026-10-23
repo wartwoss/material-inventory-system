@@ -1,8 +1,11 @@
-import { useMemo } from 'react'
-import { getCachedMaterial } from '../materials/visualMaterials'
+import { usePartMaterial } from '../materials/visualMaterials'
 
 function toMeters(mm) {
   return mm / 1000
+}
+
+function panelRepeatScale(...lengthsM) {
+  return Math.max(1, Math.round(Math.max(...lengthsM) * 2))
 }
 
 export function BedsideModel({ dimensions, partMaterials }) {
@@ -17,22 +20,16 @@ export function BedsideModel({ dimensions, partMaterials }) {
   const footWidth = 0.04
   const bodyHeight = Math.max(0.01, height - footHeight)
 
-  const carcassMaterial = useMemo(
-    () => getCachedMaterial(partMaterials.carcass),
-    [partMaterials.carcass],
+  const carcassMaterial = usePartMaterial(
+    partMaterials.carcass,
+    panelRepeatScale(length, width, bodyHeight),
   )
-  const doorMaterial = useMemo(
-    () => getCachedMaterial(partMaterials.door),
-    [partMaterials.door],
+  const doorMaterial = usePartMaterial(
+    partMaterials.door,
+    panelRepeatScale(length, bodyHeight),
   )
-  const handleMaterial = useMemo(
-    () => getCachedMaterial(partMaterials.handle),
-    [partMaterials.handle],
-  )
-  const feetMaterial = useMemo(
-    () => getCachedMaterial(partMaterials.feet),
-    [partMaterials.feet],
-  )
+  const handleMaterial = usePartMaterial(partMaterials.handle, 1)
+  const feetMaterial = usePartMaterial(partMaterials.feet, 1)
 
   const footOffsetX = length / 2 - footWidth / 2 - 0.02
   const footOffsetZ = width / 2 - footWidth / 2 - 0.02

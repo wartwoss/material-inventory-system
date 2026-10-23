@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Material extends Model
 {
@@ -19,7 +21,13 @@ class Material extends Model
         'quantity_on_hand',
         'reorder_level',
         'visual_key',
+        'color_hex',
+        'texture_path',
         'is_active',
+    ];
+
+    protected $appends = [
+        'texture_url',
     ];
 
     protected function casts(): array
@@ -53,5 +61,17 @@ class Material extends Model
         }
 
         return bccomp($this->quantity_on_hand, $this->reorder_level, 6) <= 0;
+    }
+
+    /**
+     * Public URL for the texture image, if one is stored.
+     */
+    protected function textureUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->texture_path
+                ? Storage::disk('public')->url($this->texture_path)
+                : null
+        );
     }
 }

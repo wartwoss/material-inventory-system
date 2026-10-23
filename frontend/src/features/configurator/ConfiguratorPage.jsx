@@ -377,7 +377,7 @@ export function ConfiguratorPage({ onRefreshInventory }) {
         <div>
           <p className="eyebrow">Furniture configurator</p>
           <h1>Build your piece</h1>
-          <p className="muted">Select a model, adjust dimensions, and choose materials for each part.</p>
+          <p className="muted">Select a model, adjust dimensions, choose materials, and confirm production.</p>
         </div>
         <Button variant="secondary" onClick={handleReset} disabled={!modelDetail || loadingDetail}>
           Reset to defaults
@@ -404,25 +404,47 @@ export function ConfiguratorPage({ onRefreshInventory }) {
         </Alert>
       ) : null}
 
-      <div className="configurator-layout">
-        <section className="configurator-controls panel" aria-label="Configuration controls">
-          <ModelSelector
-            models={models}
-            selectedSlug={selectedSlug}
-            onSelect={setSelectedSlug}
-          />
+      <div className="configurator-layout-v2">
+        <main className="configurator-workspace">
+          <section className="configurator-model-bar panel" aria-label="Model selection">
+            <ModelSelector
+              models={models}
+              selectedSlug={selectedSlug}
+              onSelect={setSelectedSlug}
+            />
+          </section>
 
+          <section className="configurator-preview panel" aria-label="3D preview">
+            {loadingDetail || !modelDetail ? (
+              <LoadingState label="Preparing 3D preview…" />
+            ) : (
+              <Scene slug={selectedSlug} dimensions={dimensions} partMaterials={partMaterials} />
+            )}
+          </section>
+
+          <section className="configurator-dimensions panel" aria-label="Dimension controls">
+            {loadingDetail || !modelDetail || !constraints ? (
+              <LoadingState label="Loading dimensions…" />
+            ) : (
+              <DimensionControls
+                dimensions={dimensions}
+                constraints={constraints}
+                onChange={setDimensions}
+              />
+            )}
+          </section>
+        </main>
+
+        <aside className="configurator-side-panel panel" aria-label="Configuration summary">
           {loadingDetail || !modelDetail ? (
-            <LoadingState label="Loading model details…" />
+            <LoadingState label="Loading configuration…" />
           ) : (
             <>
-              {constraints ? (
-                <DimensionControls
-                  dimensions={dimensions}
-                  constraints={constraints}
-                  onChange={setDimensions}
-                />
-              ) : null}
+              <MaterialSelectors
+                parts={modelDetail.parts}
+                selections={partMaterials}
+                onChange={setPartMaterials}
+              />
 
               <div className="quantity-field">
                 <label htmlFor="quantity">Quantity</label>
@@ -438,12 +460,6 @@ export function ConfiguratorPage({ onRefreshInventory }) {
                   }
                 />
               </div>
-
-              <MaterialSelectors
-                parts={modelDetail.parts}
-                selections={partMaterials}
-                onChange={setPartMaterials}
-              />
 
               {!allPartsHaveMaterial ? (
                 <Alert tone="warning" title="Incomplete configuration">
@@ -471,15 +487,7 @@ export function ConfiguratorPage({ onRefreshInventory }) {
               ) : null}
             </>
           )}
-        </section>
-
-        <section className="configurator-viewport panel" aria-label="3D preview">
-          {loadingDetail || !modelDetail ? (
-            <LoadingState label="Preparing 3D preview…" />
-          ) : (
-            <Scene slug={selectedSlug} dimensions={dimensions} partMaterials={partMaterials} />
-          )}
-        </section>
+        </aside>
       </div>
     </div>
   )
