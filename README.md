@@ -78,10 +78,10 @@ Current results:
 
 - `MaterialApiTest`: 21 tests, 72 assertions — OK
 - `DashboardApiTest`: 1 test, 12 assertions — OK
-- `FurnitureModelApiTest`: 4 tests, 17 assertions — OK
-- `ProductionQuoteApiTest`: 9 tests, 35 assertions — OK
-- `ProductionOrderConfirmApiTest`: 8 tests, 49 assertions — OK
-- Frontend unit tests: 9 tests — OK
+- `FurnitureModelApiTest`: 6 tests, 25 assertions — OK
+- `ProductionQuoteApiTest`: 11 tests, 41 assertions — OK
+- `ProductionOrderConfirmApiTest`: 9 tests, 60 assertions — OK
+- Frontend unit tests: 11 tests — OK
 
 ## Frontend
 
@@ -224,6 +224,15 @@ npm test
   - Added `usePartMaterial(material, repeatScale)` hook that loads textures asynchronously, caches them, repeats them based on part size, and disposes per-part materials on change/unmount.
 - Updated `TableModel` and `BedsideModel` to use `usePartMaterial` with size-appropriate repeat scales.
 - Added Vitest + `@testing-library/react` + jsdom and frontend tests for color/texture controls and `getMaterialProps`.
+
+### Bedside cabinet body configuration fix
+
+- Root cause: the backend already defined the `carcass`, `door`, `handle`, and `feet` parts as configurable, but the frontend `<select>` in `MaterialSelectors` used the full material object as its `value`, so the browser could not match it to an `<option>` and the selected material was never visibly selected.
+- Added `2026_10_24_085630_ensure_bedside_cabinet_parts_are_configurable.php` to guarantee existing databases have the bedside parts marked configurable with the correct formulas and units.
+- Fixed `MaterialSelectors` to use the material ID as the `<select>` value and resolve the full material object on change.
+- Verified `BedsideModel` applies the selected `carcass` material to the entire cabinet body mesh and the `door` material only to the door mesh.
+- Added backend tests proving the bedside API returns the carcass as configurable, that carcass and door produce separate consumptions, and that carcass consumption scales with dimensions.
+- Added a frontend test proving `MaterialSelectors` displays and updates selected materials correctly.
 
 ## Consumption formulas and assumptions
 

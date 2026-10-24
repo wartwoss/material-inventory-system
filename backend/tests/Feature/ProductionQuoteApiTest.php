@@ -24,6 +24,27 @@ class ProductionQuoteApiTest extends TestCase
         ]);
     }
 
+    private function bedsidePayload(int $quantity = 1): array
+    {
+        $oak = Material::where('sku', 'OAK-020')->firstOrFail();
+        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
+
+        return [
+            'furniture_model_slug' => 'bedside-cabinet',
+            'length_mm' => 450,
+            'width_mm' => 400,
+            'height_mm' => 650,
+            'quantity' => $quantity,
+            'parts' => [
+                ['code' => 'carcass', 'material_id' => $pine->id],
+                ['code' => 'door', 'material_id' => $oak->id],
+                ['code' => 'handle', 'material_id' => $brass->id],
+                ['code' => 'feet', 'material_id' => $pine->id],
+            ],
+        ];
+    }
+
     private function tablePayload(int $quantity = 1): array
     {
         $oak = Material::where('sku', 'OAK-020')->firstOrFail();
@@ -270,5 +291,72 @@ class ProductionQuoteApiTest extends TestCase
         $this->postJson('/api/v1/production/quote', $payload)
             ->assertUnprocessable()
             ->assertJsonPath('message', "Selected material for part 'top' is not available.");
+    }
+
+    public function test_bedside_carcass_and_door_produce_separate_consumptions(): void
+    {
+        $this->seedCatalogue();
+
+        $oak = Material::where('sku', 'OAK-020')->firstOrFail();
+        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
+
+        $payload = $this->bedsidePayload();
+        $payload['parts'] = [
+            ['code' => 'carcass', 'material_id' => $pine->id],
+            ['code' => 'door', 'material_id' => $oak->id],
+            ['code' => 'handle', 'material_id' => $brass->id],
+            ['code' => 'feet', 'material_id' => $pine->id],
+        ];
+
+        $response = $this->postJson('/api/v1/production/quote', $payload);
+
+        $response->assertOk();
+
+        $components = $response->json('components');
+
+        $carcass = collect($components)->firstWhere('part_code', 'carcass');
+        $door = collect($components)->firstWhere('part_code', 'door');
+
+        $this->assertSame('m3', $carcass['unit']);
+        $this->assertSame('m2', $door['unit']);
+        $this->assertNotSame($carcass['material_id'], $door['material_id']);
+    }
+
+    public function test_bedside_carcass_consumption_scales_with_dimensions(): void
+    {
+        $this->seedCatalogue();
+
+        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $oak = Material::where('sku', 'OAK-020')->firstOrFail();
+        $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
+
+        $basePayload = [
+            'furniture_model_slug' => 'bedside-cabinet',
+            'length_mm' => 450,
+            'width_mm' => 400,
+            'height_mm' => 650,
+            'quantity' => 1,
+            'parts' => [
+                ['code' => 'carcass', 'material_id' => $pine->id],
+                ['code' => 'door', 'material_id' => $oak->id],
+                ['code' => 'handle', 'material_id' => $brass->id],
+                ['code' => 'feet', 'material_id' => $pine->id],
+            ],
+        ];
+
+        $baseCarcass = collect($this->postJson('/api/v1/production/quote', $basePayload)->json('components'))
+            ->firstWhere('part_code', 'carcass');
+
+        $tallerPayload = $basePayload;
+        $tallerPayload['height_mm'] = 800;
+
+        $tallerCarcass = collect($this->postJson('/api/v1/production/quote', $tallerPayload)->json('components'))
+            ->firstWhere('part_code', 'carcass');
+
+        $this->assertGreaterThan(
+            (float) $baseCarcass['total_quantity'],
+            (float) $tallerCarcass['total_quantity']
+        );
     }
 }

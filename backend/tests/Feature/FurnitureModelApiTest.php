@@ -144,4 +144,54 @@ class FurnitureModelApiTest extends TestCase
 
         $this->getJson('/api/v1/furniture-models/retired')->assertNotFound();
     }
+
+    public function test_bedside_cabinet_returns_carcass_as_configurable_part(): void
+    {
+        $this->seed([
+            \Database\Seeders\MaterialSeeder::class,
+            \Database\Seeders\FurnitureModelSeeder::class,
+            \Database\Seeders\ModelPartSeeder::class,
+        ]);
+
+        $response = $this->getJson('/api/v1/furniture-models/bedside-cabinet');
+
+        $response->assertOk();
+
+        $parts = $response->json('parts');
+        $carcass = collect($parts)->firstWhere('code', 'carcass');
+        $door = collect($parts)->firstWhere('code', 'door');
+        $feet = collect($parts)->firstWhere('code', 'feet');
+
+        $this->assertNotNull($carcass);
+        $this->assertTrue($carcass['is_configurable']);
+        $this->assertSame('cabinet_carcass_m3', $carcass['formula_key']);
+        $this->assertSame('m3', $carcass['consumption_unit']);
+        $this->assertTrue($carcass['has_compatible_materials']);
+
+        $this->assertNotNull($door);
+        $this->assertTrue($door['is_configurable']);
+
+        $this->assertNotNull($feet);
+        $this->assertTrue($feet['is_configurable']);
+    }
+
+    public function test_bedside_cabinet_carcass_only_returns_wood_m3_materials(): void
+    {
+        $this->seed([
+            \Database\Seeders\MaterialSeeder::class,
+            \Database\Seeders\FurnitureModelSeeder::class,
+            \Database\Seeders\ModelPartSeeder::class,
+        ]);
+
+        $response = $this->getJson('/api/v1/furniture-models/bedside-cabinet');
+
+        $response->assertOk();
+
+        $carcass = collect($response->json('parts'))->firstWhere('code', 'carcass');
+
+        foreach ($carcass['allowed_materials'] as $material) {
+            $this->assertSame('wood', $material['material_group']);
+            $this->assertSame('m3', $material['stock_unit']);
+        }
+    }
 }

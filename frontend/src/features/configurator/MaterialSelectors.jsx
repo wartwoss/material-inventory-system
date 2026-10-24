@@ -2,7 +2,8 @@ export function MaterialSelectors({ parts, selections, onChange }) {
   return (
     <div className="material-selectors">
       {parts.map((part) => {
-        const value = selections[part.code] ?? ''
+        const selectedMaterial = selections[part.code]
+        const selectedId = selectedMaterial?.id ?? ''
         const hasMaterials = part.allowed_materials.length > 0
 
         return (
@@ -15,7 +16,7 @@ export function MaterialSelectors({ parts, selections, onChange }) {
             {hasMaterials ? (
               <select
                 id={`material-${part.code}`}
-                value={value}
+                value={selectedId}
                 onChange={(event) =>
                   onChange({
                     ...selections,
@@ -35,7 +36,7 @@ export function MaterialSelectors({ parts, selections, onChange }) {
               <div className="material-empty">No compatible materials in stock</div>
             )}
 
-            {!value && hasMaterials ? (
+            {!selectedMaterial && hasMaterials ? (
               <span className="field-error">Please select a material</span>
             ) : null}
           </div>

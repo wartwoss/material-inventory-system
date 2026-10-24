@@ -302,4 +302,55 @@ class ProductionOrderConfirmApiTest extends TestCase
 
         $this->assertDatabaseCount('production_orders', 0);
     }
+
+    public function test_bedside_confirmation_records_one_consumption_per_part(): void
+    {
+        $this->seedCatalogue();
+
+        $oak = Material::where('sku', 'OAK-020')->firstOrFail();
+        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
+
+        $payload = $this->bedsidePayload();
+        $payload['parts'] = [
+            ['code' => 'carcass', 'material_id' => $pine->id],
+            ['code' => 'door', 'material_id' => $oak->id],
+            ['code' => 'handle', 'material_id' => $brass->id],
+            ['code' => 'feet', 'material_id' => $pine->id],
+        ];
+
+        $response = $this->postJson('/api/v1/production-orders/confirm', $payload, [
+            'Idempotency-Key' => self::IDEMPOTENCY_KEY,
+        ]);
+
+        $response->assertCreated();
+
+        $orderId = $response->json('id');
+
+        $this->assertDatabaseCount('production_consumptions', 4);
+
+        $this->assertDatabaseHas('production_consumptions', [
+            'production_order_id' => $orderId,
+            'model_part_id' => 3,
+            'material_id' => $pine->id,
+        ]);
+
+        $this->assertDatabaseHas('production_consumptions', [
+            'production_order_id' => $orderId,
+            'model_part_id' => 4,
+            'material_id' => $oak->id,
+        ]);
+
+        $this->assertDatabaseHas('production_consumptions', [
+            'production_order_id' => $orderId,
+            'model_part_id' => 5,
+            'material_id' => $brass->id,
+        ]);
+
+        $this->assertDatabaseHas('production_consumptions', [
+            'production_order_id' => $orderId,
+            'model_part_id' => 6,
+            'material_id' => $pine->id,
+        ]);
+    }
 }
