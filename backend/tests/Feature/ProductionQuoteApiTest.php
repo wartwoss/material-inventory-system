@@ -27,7 +27,8 @@ class ProductionQuoteApiTest extends TestCase
     private function bedsidePayload(int $quantity = 1): array
     {
         $oak = Material::where('sku', 'OAK-020')->firstOrFail();
-        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $birch = Material::where('sku', 'BIR-040')->firstOrFail();
+        $foot = Material::where('sku', 'PIN-FOOT')->firstOrFail();
         $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
 
         return [
@@ -37,10 +38,10 @@ class ProductionQuoteApiTest extends TestCase
             'height_mm' => 650,
             'quantity' => $quantity,
             'parts' => [
-                ['code' => 'carcass', 'material_id' => $pine->id],
+                ['code' => 'carcass', 'material_id' => $birch->id],
                 ['code' => 'door', 'material_id' => $oak->id],
                 ['code' => 'handle', 'material_id' => $brass->id],
-                ['code' => 'feet', 'material_id' => $pine->id],
+                ['code' => 'feet', 'material_id' => $foot->id],
             ],
         ];
     }
@@ -86,38 +87,22 @@ class ProductionQuoteApiTest extends TestCase
         $this->assertSame('0.008880', $legs['total_quantity']);
     }
 
-    public function test_bedside_quote_aggregates_shared_material(): void
+    public function test_bedside_quote_returns_components_for_each_part(): void
     {
         $this->seedCatalogue();
 
-        $oak = Material::where('sku', 'OAK-020')->firstOrFail();
-        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
-        $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
+        $response = $this->postJson('/api/v1/production/quote', $this->bedsidePayload());
 
-        $payload = [
-            'furniture_model_slug' => 'bedside-cabinet',
-            'length_mm' => 450,
-            'width_mm' => 400,
-            'height_mm' => 650,
-            'quantity' => 1,
-            'parts' => [
-                ['code' => 'carcass', 'material_id' => $pine->id],
-                ['code' => 'door', 'material_id' => $oak->id],
-                ['code' => 'handle', 'material_id' => $brass->id],
-                ['code' => 'feet', 'material_id' => $pine->id],
-            ],
-        ];
+        $response->assertOk()
+            ->assertJsonPath('is_sufficient', true);
 
-        $response = $this->postJson('/api/v1/production/quote', $payload);
+        $components = $response->json('components');
+        $this->assertCount(4, $components);
 
-        $response->assertOk();
-
-        $pineAggregate = collect($response->json('materials'))
-            ->firstWhere('material_id', $pine->id);
-
-        $this->assertNotNull($pineAggregate);
-        $this->assertSame('m3', $pineAggregate['unit']);
-        $this->assertTrue($pineAggregate['is_sufficient']);
+        $this->assertNotNull(collect($components)->firstWhere('part_code', 'carcass'));
+        $this->assertNotNull(collect($components)->firstWhere('part_code', 'door'));
+        $this->assertNotNull(collect($components)->firstWhere('part_code', 'handle'));
+        $this->assertNotNull(collect($components)->firstWhere('part_code', 'feet'));
     }
 
     public function test_quoting_does_not_change_inventory(): void
@@ -298,15 +283,16 @@ class ProductionQuoteApiTest extends TestCase
         $this->seedCatalogue();
 
         $oak = Material::where('sku', 'OAK-020')->firstOrFail();
-        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $birch = Material::where('sku', 'BIR-040')->firstOrFail();
+        $foot = Material::where('sku', 'PIN-FOOT')->firstOrFail();
         $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
 
         $payload = $this->bedsidePayload();
         $payload['parts'] = [
-            ['code' => 'carcass', 'material_id' => $pine->id],
+            ['code' => 'carcass', 'material_id' => $birch->id],
             ['code' => 'door', 'material_id' => $oak->id],
             ['code' => 'handle', 'material_id' => $brass->id],
-            ['code' => 'feet', 'material_id' => $pine->id],
+            ['code' => 'feet', 'material_id' => $foot->id],
         ];
 
         $response = $this->postJson('/api/v1/production/quote', $payload);
@@ -327,8 +313,9 @@ class ProductionQuoteApiTest extends TestCase
     {
         $this->seedCatalogue();
 
-        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $birch = Material::where('sku', 'BIR-040')->firstOrFail();
         $oak = Material::where('sku', 'OAK-020')->firstOrFail();
+        $foot = Material::where('sku', 'PIN-FOOT')->firstOrFail();
         $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
 
         $basePayload = [
@@ -338,10 +325,10 @@ class ProductionQuoteApiTest extends TestCase
             'height_mm' => 650,
             'quantity' => 1,
             'parts' => [
-                ['code' => 'carcass', 'material_id' => $pine->id],
+                ['code' => 'carcass', 'material_id' => $birch->id],
                 ['code' => 'door', 'material_id' => $oak->id],
                 ['code' => 'handle', 'material_id' => $brass->id],
-                ['code' => 'feet', 'material_id' => $pine->id],
+                ['code' => 'feet', 'material_id' => $foot->id],
             ],
         ];
 
@@ -358,5 +345,82 @@ class ProductionQuoteApiTest extends TestCase
             (float) $baseCarcass['total_quantity'],
             (float) $tallerCarcass['total_quantity']
         );
+    }
+
+    public function test_quote_rejects_incompatible_purpose(): void
+    {
+        $this->seedCatalogue();
+
+        $oak = Material::where('sku', 'OAK-020')->firstOrFail();
+        $birch = Material::where('sku', 'BIR-040')->firstOrFail();
+
+        // Birch is a board material measured in m3; legs require leg-purpose materials.
+        $payload = $this->tablePayload();
+        $payload['parts'] = [
+            ['code' => 'top', 'material_id' => $oak->id],
+            ['code' => 'legs', 'material_id' => $birch->id],
+        ];
+
+        $this->postJson('/api/v1/production/quote', $payload)
+            ->assertUnprocessable()
+            ->assertJsonPath('message', "Material purpose 'board' is not compatible with part 'legs'.");
+    }
+
+    public function test_quote_accepts_compatible_purpose_with_matching_unit(): void
+    {
+        $model = FurnitureModel::factory()->create([
+            'slug' => 'shelf-unit',
+            'name' => 'Shelf unit',
+            'is_active' => true,
+            'min_length_mm' => 100,
+            'max_length_mm' => 1000,
+            'min_width_mm' => 100,
+            'max_width_mm' => 1000,
+            'min_height_mm' => 100,
+            'max_height_mm' => 1000,
+        ]);
+
+        $boardM3 = Material::factory()->create([
+            'name' => 'Birch board m3',
+            'material_group' => 'wood',
+            'purpose' => 'board',
+            'stock_unit' => 'm3',
+            'quantity_on_hand' => '10.000000',
+            'is_active' => true,
+        ]);
+
+        ModelPart::factory()->create([
+            'furniture_model_id' => $model->id,
+            'code' => 'carcass',
+            'name' => 'Carcass',
+            'material_group' => 'wood',
+            'compatible_purposes' => ['board'],
+            'consumption_unit' => 'm3',
+            'formula_key' => 'solid_volume_m3',
+            'formula_parameters' => [
+                'height_source' => ['type' => 'dimension', 'axis' => 'height'],
+                'profile_width_mm' => 50,
+                'profile_thickness_mm' => 50,
+                'leg_count' => 4,
+                'waste_factor' => 1.0,
+            ],
+            'is_configurable' => true,
+        ]);
+
+        $payload = [
+            'furniture_model_slug' => 'shelf-unit',
+            'length_mm' => 500,
+            'width_mm' => 400,
+            'height_mm' => 300,
+            'quantity' => 1,
+            'parts' => [
+                ['code' => 'carcass', 'material_id' => $boardM3->id],
+            ],
+        ];
+
+        $this->postJson('/api/v1/production/quote', $payload)
+            ->assertOk()
+            ->assertJsonPath('is_sufficient', true)
+            ->assertJsonPath('components.0.part_code', 'carcass');
     }
 }

@@ -3,6 +3,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { StatusBadge } from '../../components/StatusBadge'
 import { materialStatus, formatQuantity } from '../../lib/format'
+import { MATERIAL_PURPOSE_LABELS } from '../../lib/constants'
 
 export function MaterialTable({
   materials,
@@ -49,6 +50,7 @@ export function MaterialTable({
           <tr>
             <th scope="col">Material</th>
             <th scope="col">Group</th>
+            <th scope="col">Purpose</th>
             <th scope="col">Unit</th>
             <th scope="col" className="align-right">
               On hand
@@ -79,6 +81,11 @@ export function MaterialTable({
                 </td>
                 <td data-label="Group">
                   <span className="group-tag">{material.material_group}</span>
+                </td>
+                <td data-label="Purpose">
+                  <span className="purpose-tag">
+                    {MATERIAL_PURPOSE_LABELS[material.purpose] ?? material.purpose ?? '—'}
+                  </span>
                 </td>
                 <td data-label="Unit">{material.stock_unit}</td>
                 <td data-label="On hand" className="align-right">

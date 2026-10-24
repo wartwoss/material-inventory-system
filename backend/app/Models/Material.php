@@ -13,10 +13,25 @@ class Material extends Model
     /** @use HasFactory<\Database\Factories\MaterialFactory> */
     use HasFactory;
 
+    public const PURPOSE_BOARD = 'board';
+    public const PURPOSE_LEG = 'leg';
+    public const PURPOSE_HANDLE = 'handle';
+    public const PURPOSE_FOOT = 'foot';
+    public const PURPOSE_GENERAL = 'general';
+
+    public const PURPOSES = [
+        self::PURPOSE_BOARD,
+        self::PURPOSE_LEG,
+        self::PURPOSE_HANDLE,
+        self::PURPOSE_FOOT,
+        self::PURPOSE_GENERAL,
+    ];
+
     protected $fillable = [
         'name',
         'sku',
         'material_group',
+        'purpose',
         'stock_unit',
         'quantity_on_hand',
         'reorder_level',

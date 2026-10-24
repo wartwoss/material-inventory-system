@@ -81,6 +81,14 @@ class ProductionQuoteService
                 );
             }
 
+            $compatiblePurposes = $part->compatible_purposes ?? [Material::PURPOSE_GENERAL];
+
+            if ($material->purpose !== null && ! in_array($material->purpose, $compatiblePurposes, true)) {
+                throw new InvalidArgumentException(
+                    "Material purpose '{$material->purpose}' is not compatible with part '{$part->code}'."
+                );
+            }
+
             $perUnit = $this->formulaCalculator->calculate(
                 $part->formula_key,
                 $dimensions,

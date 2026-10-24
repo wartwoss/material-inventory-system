@@ -76,12 +76,12 @@ vendor/bin/phpunit --filter ProductionOrderConfirmApiTest
 
 Current results:
 
-- `MaterialApiTest`: 21 tests, 72 assertions — OK
+- `MaterialApiTest`: 24 tests, 78 assertions — OK
 - `DashboardApiTest`: 1 test, 12 assertions — OK
-- `FurnitureModelApiTest`: 6 tests, 25 assertions — OK
-- `ProductionQuoteApiTest`: 11 tests, 41 assertions — OK
+- `FurnitureModelApiTest`: 11 tests, 41 assertions — OK
+- `ProductionQuoteApiTest`: 13 tests, 48 assertions — OK
 - `ProductionOrderConfirmApiTest`: 9 tests, 60 assertions — OK
-- Frontend unit tests: 11 tests — OK
+- Frontend unit tests: 13 tests — OK
 
 ## Frontend
 
@@ -233,6 +233,31 @@ npm test
 - Verified `BedsideModel` applies the selected `carcass` material to the entire cabinet body mesh and the `door` material only to the door mesh.
 - Added backend tests proving the bedside API returns the carcass as configurable, that carcass and door produce separate consumptions, and that carcass consumption scales with dimensions.
 - Added a frontend test proving `MaterialSelectors` displays and updates selected materials correctly.
+
+### Stage 5A.2 — Material purpose and component compatibility
+
+- Added a new `purpose` column to `materials` and a `compatible_purposes` JSON column to `model_parts` via additive migrations.
+- Backfilled existing demo records safely:
+  - Demo materials received purposes by SKU (`board`, `leg`, `handle`, `foot`, or `general`).
+  - Existing model parts received compatible purposes by part code (`carcass`/`door`/`top`/`shelf` → `board`; `legs` → `leg`; `handle` → `handle`; `feet` → `foot`).
+  - Unknown existing materials/parts default to `general` so they keep working.
+- Canonical purpose list: `board`, `leg`, `handle`, `foot`, `general`.
+- Updated `StoreMaterialRequest`/`UpdateMaterialRequest` to validate `purpose` against the canonical list.
+- Updated `FurnitureModelController::show` to filter `allowed_materials` by both the existing group/unit rules **and** purpose compatibility.
+- Updated `ProductionQuoteService` to reject a material whose purpose is not in the part's `compatible_purposes`, protecting against non-API clients.
+- Updated `MaterialFormModal` with a Purpose dropdown and included purpose in the submitted FormData.
+- Added a Purpose column to `MaterialTable`.
+- Added demo materials:
+  - `BIR-040` — Birch board 40 mm (board, m³) for bedside carcasses.
+  - `PIN-FOOT` — Pine foot blank (foot, m³) for bedside feet.
+- Updated `ModelPartSeeder` and `MaterialSeeder` so fresh seeds use correct purposes and compatibility.
+- Added backend tests for:
+  - Creating/updating material purpose.
+  - Rejecting invalid purposes.
+  - Part-specific allowed material lists (carcass → board, door → board, legs → leg, handle → handle, feet → foot).
+  - Purpose mismatch rejection in quotes.
+  - A board material measured in m³ still being accepted when the part's formula and unit are m³.
+- Added frontend tests for the purpose dropdown.
 
 ## Consumption formulas and assumptions
 

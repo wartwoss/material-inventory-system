@@ -16,6 +16,7 @@ describe('MaterialFormModal appearance controls', () => {
     name: 'Oak board',
     sku: 'OAK-020',
     material_group: 'wood',
+    purpose: 'board',
     stock_unit: 'm2',
     reorder_level: null,
     visual_key: 'oak-natural',
@@ -100,5 +101,20 @@ describe('MaterialFormModal appearance controls', () => {
     fireEvent.click(removeButton)
 
     expect(container.querySelector('img[alt="Texture preview"]')).not.toBeInTheDocument()
+  })
+
+  it('shows the stored purpose in the purpose dropdown', () => {
+    const { getByLabelText } = renderModal()
+
+    const purposeSelect = getByLabelText(/purpose/i)
+    expect(purposeSelect).toHaveValue('board')
+  })
+
+  it('changes the purpose value when a different purpose is selected', () => {
+    const { getByLabelText } = renderModal()
+
+    const purposeSelect = getByLabelText(/purpose/i)
+    fireEvent.change(purposeSelect, { target: { value: 'handle' } })
+    expect(purposeSelect).toHaveValue('handle')
   })
 })

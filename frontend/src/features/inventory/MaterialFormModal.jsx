@@ -4,12 +4,13 @@ import { Button } from '../../components/Button'
 import { FormField } from '../../components/FormField'
 import { Modal } from '../../components/Modal'
 import { listMovements } from '../../api/materials'
-import { MATERIAL_GROUP_SUGGESTIONS, STOCK_UNITS } from '../../lib/constants'
+import { MATERIAL_GROUP_SUGGESTIONS, MATERIAL_PURPOSES, STOCK_UNITS } from '../../lib/constants'
 
 const EMPTY_FORM = {
   name: '',
   sku: '',
   material_group: '',
+  purpose: 'general',
   stock_unit: 'm2',
   opening_quantity: '',
   reorder_level: '',
@@ -37,6 +38,7 @@ function toForm(material) {
     name: material.name ?? '',
     sku: material.sku ?? '',
     material_group: material.material_group ?? '',
+    purpose: material.purpose ?? 'general',
     stock_unit: material.stock_unit ?? 'm2',
     opening_quantity: '',
     reorder_level:
@@ -156,6 +158,10 @@ export function MaterialFormModal({ mode, material, groups, onClose, onSubmit })
       next.material_group = 'Choose or enter a material group.'
     }
 
+    if (!form.purpose) {
+      next.purpose = 'Choose a material purpose.'
+    }
+
     if (!form.stock_unit) {
       next.stock_unit = 'Choose a stock unit.'
     }
@@ -192,6 +198,7 @@ export function MaterialFormModal({ mode, material, groups, onClose, onSubmit })
     payload.append('name', form.name.trim())
     payload.append('sku', form.sku.trim() || '')
     payload.append('material_group', form.material_group.trim())
+    payload.append('purpose', form.purpose)
     payload.append('stock_unit', form.stock_unit)
     payload.append(
       'reorder_level',
@@ -303,6 +310,27 @@ export function MaterialFormModal({ mode, material, groups, onClose, onSubmit })
                   ))}
                 </datalist>
               </>
+            )}
+          </FormField>
+
+          <FormField
+            label="Purpose"
+            required
+            error={errors.purpose}
+            hint="Controls which furniture components this material can be assigned to."
+          >
+            {(props) => (
+              <select
+                {...props}
+                value={form.purpose}
+                onChange={(event) => update('purpose', event.target.value)}
+              >
+                {MATERIAL_PURPOSES.map((purpose) => (
+                  <option key={purpose.value} value={purpose.value}>
+                    {purpose.label}
+                  </option>
+                ))}
+              </select>
             )}
           </FormField>
 

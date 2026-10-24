@@ -17,6 +17,7 @@ class ModelPart extends Model
         'code',
         'name',
         'material_group',
+        'compatible_purposes',
         'consumption_unit',
         'formula_key',
         'formula_parameters',
@@ -27,6 +28,7 @@ class ModelPart extends Model
     protected function casts(): array
     {
         return [
+            'compatible_purposes' => 'array',
             'formula_parameters' => 'array',
             'is_configurable' => 'boolean',
             'sort_order' => 'integer',

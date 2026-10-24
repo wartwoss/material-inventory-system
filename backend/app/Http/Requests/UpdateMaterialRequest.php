@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Material;
 use App\Services\StockAdjustmentService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -25,6 +26,7 @@ class UpdateMaterialRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'sku' => ['nullable', 'string', 'max:255', Rule::unique('materials', 'sku')->ignore($materialId)],
             'material_group' => ['sometimes', 'required', 'string', 'max:255'],
+            'purpose' => ['sometimes', 'required', 'string', 'max:50', Rule::in(Material::PURPOSES)],
             'stock_unit' => ['sometimes', 'required', 'string', Rule::in(StockAdjustmentService::SUPPORTED_UNITS)],
             'reorder_level' => ['nullable', 'numeric', 'min:0'],
             'visual_key' => ['nullable', 'string', 'max:255'],

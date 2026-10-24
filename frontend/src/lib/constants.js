@@ -18,6 +18,22 @@ export const MATERIAL_GROUP_SUGGESTIONS = [
   'hardware',
 ]
 
+export const MATERIAL_PURPOSES = [
+  { value: 'board', label: 'Board — panels, tops, carcasses, doors' },
+  { value: 'leg', label: 'Leg — table or cabinet legs' },
+  { value: 'handle', label: 'Handle — pulls and knobs' },
+  { value: 'foot', label: 'Foot — standalone feet' },
+  { value: 'general', label: 'General — other or unspecified uses' },
+]
+
+export const MATERIAL_PURPOSE_LABELS = {
+  board: 'Board',
+  leg: 'Leg',
+  handle: 'Handle',
+  foot: 'Foot',
+  general: 'General',
+}
+
 export const MOVEMENT_TYPE_LABELS = {
   opening: 'Opening stock',
   manual_adjustment: 'Manual adjustment',

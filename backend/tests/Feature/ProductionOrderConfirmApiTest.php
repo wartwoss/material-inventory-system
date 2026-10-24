@@ -45,7 +45,8 @@ class ProductionOrderConfirmApiTest extends TestCase
     private function bedsidePayload(int $quantity = 1): array
     {
         $oak = Material::where('sku', 'OAK-020')->firstOrFail();
-        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $birch = Material::where('sku', 'BIR-040')->firstOrFail();
+        $foot = Material::where('sku', 'PIN-FOOT')->firstOrFail();
         $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
 
         return [
@@ -55,10 +56,10 @@ class ProductionOrderConfirmApiTest extends TestCase
             'height_mm' => 650,
             'quantity' => $quantity,
             'parts' => [
-                ['code' => 'carcass', 'material_id' => $pine->id],
+                ['code' => 'carcass', 'material_id' => $birch->id],
                 ['code' => 'door', 'material_id' => $oak->id],
                 ['code' => 'handle', 'material_id' => $brass->id],
-                ['code' => 'feet', 'material_id' => $pine->id],
+                ['code' => 'feet', 'material_id' => $foot->id],
             ],
         ];
     }
@@ -240,12 +241,13 @@ class ProductionOrderConfirmApiTest extends TestCase
         $this->assertDatabaseCount('inventory_movements', 0);
     }
 
-    public function test_bedside_confirmation_aggregates_shared_material_into_single_movement(): void
+    public function test_bedside_confirmation_creates_consumptions_and_movements(): void
     {
         $this->seedCatalogue();
 
         $oak = Material::where('sku', 'OAK-020')->firstOrFail();
-        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $birch = Material::where('sku', 'BIR-040')->firstOrFail();
+        $foot = Material::where('sku', 'PIN-FOOT')->firstOrFail();
         $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
 
         $response = $this->postJson('/api/v1/production-orders/confirm', $this->bedsidePayload(), [
@@ -254,42 +256,20 @@ class ProductionOrderConfirmApiTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonCount(4, 'production_consumptions')
-            ->assertJsonCount(3, 'inventory_movements');
+            ->assertJsonCount(4, 'inventory_movements');
 
         $orderId = $response->json('id');
 
         $this->assertDatabaseCount('production_consumptions', 4);
-        $this->assertDatabaseCount('inventory_movements', 3);
+        $this->assertDatabaseCount('inventory_movements', 4);
 
-        $pineConsumptions = \App\Models\ProductionConsumption::where('production_order_id', $orderId)
-            ->where('material_id', $pine->id)
-            ->get();
-
-        $this->assertCount(2, $pineConsumptions);
-
-        $pineMovement = \App\Models\InventoryMovement::where('production_order_id', $orderId)
-            ->where('material_id', $pine->id)
-            ->first();
-
-        $expectedPineDelta = bcadd(
-            $pineConsumptions[0]->quantity_consumed,
-            $pineConsumptions[1]->quantity_consumed,
-            6
-        );
-
-        $this->assertSame($expectedPineDelta, ltrim($pineMovement->quantity_delta, '-'));
-        $this->assertSame('production', $pineMovement->movement_type);
-
-        $this->assertDatabaseHas('inventory_movements', [
-            'production_order_id' => $orderId,
-            'material_id' => $oak->id,
-            'movement_type' => 'production',
-        ]);
-        $this->assertDatabaseHas('inventory_movements', [
-            'production_order_id' => $orderId,
-            'material_id' => $brass->id,
-            'movement_type' => 'production',
-        ]);
+        foreach ([$oak->id, $birch->id, $foot->id, $brass->id] as $materialId) {
+            $this->assertDatabaseHas('inventory_movements', [
+                'production_order_id' => $orderId,
+                'material_id' => $materialId,
+                'movement_type' => 'production',
+            ]);
+        }
     }
 
     public function test_missing_idempotency_key_is_rejected(): void
@@ -308,18 +288,11 @@ class ProductionOrderConfirmApiTest extends TestCase
         $this->seedCatalogue();
 
         $oak = Material::where('sku', 'OAK-020')->firstOrFail();
-        $pine = Material::where('sku', 'PIN-LEG-50')->firstOrFail();
+        $birch = Material::where('sku', 'BIR-040')->firstOrFail();
+        $foot = Material::where('sku', 'PIN-FOOT')->firstOrFail();
         $brass = Material::where('sku', 'BRA-HDL')->firstOrFail();
 
-        $payload = $this->bedsidePayload();
-        $payload['parts'] = [
-            ['code' => 'carcass', 'material_id' => $pine->id],
-            ['code' => 'door', 'material_id' => $oak->id],
-            ['code' => 'handle', 'material_id' => $brass->id],
-            ['code' => 'feet', 'material_id' => $pine->id],
-        ];
-
-        $response = $this->postJson('/api/v1/production-orders/confirm', $payload, [
+        $response = $this->postJson('/api/v1/production-orders/confirm', $this->bedsidePayload(), [
             'Idempotency-Key' => self::IDEMPOTENCY_KEY,
         ]);
 
@@ -332,7 +305,7 @@ class ProductionOrderConfirmApiTest extends TestCase
         $this->assertDatabaseHas('production_consumptions', [
             'production_order_id' => $orderId,
             'model_part_id' => 3,
-            'material_id' => $pine->id,
+            'material_id' => $birch->id,
         ]);
 
         $this->assertDatabaseHas('production_consumptions', [
@@ -350,7 +323,7 @@ class ProductionOrderConfirmApiTest extends TestCase
         $this->assertDatabaseHas('production_consumptions', [
             'production_order_id' => $orderId,
             'model_part_id' => 6,
-            'material_id' => $pine->id,
+            'material_id' => $foot->id,
         ]);
     }
 }

@@ -496,7 +496,8 @@ h1 {
   color: var(--muted);
 }
 
-.group-tag {
+.group-tag,
+.purpose-tag {
   display: inline-block;
   padding: 3px 10px;
   border-radius: 999px;

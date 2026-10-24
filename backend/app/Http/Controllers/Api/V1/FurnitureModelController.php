@@ -45,15 +45,22 @@ class FurnitureModelController extends Controller
             ->firstOrFail();
 
         $parts = $model->modelParts->map(function ($part) {
+            $compatiblePurposes = $part->compatible_purposes ?? [\App\Models\Material::PURPOSE_GENERAL];
+
             $materials = Material::active()
                 ->where('material_group', $part->material_group)
                 ->where('stock_unit', $part->consumption_unit)
+                ->where(function ($query) use ($compatiblePurposes) {
+                    $query->whereNull('purpose')
+                        ->orWhereIn('purpose', $compatiblePurposes);
+                })
                 ->orderBy('name')
                 ->get([
                     'id',
                     'name',
                     'sku',
                     'material_group',
+                    'purpose',
                     'stock_unit',
                     'quantity_on_hand',
                     'visual_key',
@@ -67,6 +74,7 @@ class FurnitureModelController extends Controller
                 'code' => $part->code,
                 'name' => $part->name,
                 'material_group' => $part->material_group,
+                'compatible_purposes' => $compatiblePurposes,
                 'consumption_unit' => $part->consumption_unit,
                 'formula_key' => $part->formula_key,
                 'formula_parameters' => $part->formula_parameters,

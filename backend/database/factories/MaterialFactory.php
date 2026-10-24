@@ -18,6 +18,7 @@ class MaterialFactory extends Factory
             'name' => $this->faker->word(),
             'sku' => $this->faker->unique()->bothify('SKU-####'),
             'material_group' => $this->faker->randomElement(['wood', 'ceramic', 'metal', 'upholstery']),
+            'purpose' => Material::PURPOSE_GENERAL,
             'stock_unit' => $this->faker->randomElement(['m2', 'm3', 'm', 'ea', 'kg']),
             'quantity_on_hand' => '0.000000',
             'reorder_level' => null,

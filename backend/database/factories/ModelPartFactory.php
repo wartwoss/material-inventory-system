@@ -20,6 +20,7 @@ class ModelPartFactory extends Factory
             'code' => $this->faker->unique()->word(),
             'name' => $this->faker->words(2, true),
             'material_group' => $this->faker->randomElement(['wood', 'metal', 'ceramic', 'upholstery']),
+            'compatible_purposes' => [\App\Models\Material::PURPOSE_GENERAL],
             'consumption_unit' => $this->faker->randomElement(['m2', 'm3', 'm', 'ea', 'kg']),
             'formula_key' => 'panel_area_m2',
             'formula_parameters' => [],

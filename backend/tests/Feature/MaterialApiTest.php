@@ -30,6 +30,7 @@ class MaterialApiTest extends TestCase
             'name' => 'Oak Wood',
             'sku' => 'OAK-001',
             'material_group' => 'wood',
+            'purpose' => 'board',
             'stock_unit' => 'm3',
             'opening_quantity' => 12.5,
             'reorder_level' => 5.0,
@@ -54,6 +55,7 @@ class MaterialApiTest extends TestCase
         $payload = [
             'name' => 'Invalid Unit Material',
             'material_group' => 'wood',
+            'purpose' => 'board',
             'stock_unit' => 'litres',
         ];
 
@@ -68,6 +70,7 @@ class MaterialApiTest extends TestCase
         $payload = [
             'name' => 'Bad Material',
             'material_group' => 'wood',
+            'purpose' => 'board',
             'stock_unit' => 'm3',
             'opening_quantity' => -5,
         ];
@@ -233,6 +236,7 @@ class MaterialApiTest extends TestCase
     $response = $this->call('POST', '/api/v1/materials', [
       'name' => 'Textured oak',
       'material_group' => 'wood',
+      'purpose' => 'board',
       'stock_unit' => 'm2',
       'color_hex' => '#8B5A2B',
     ], [], ['texture' => $file], ['HTTP_ACCEPT' => 'application/json']);
@@ -269,6 +273,7 @@ class MaterialApiTest extends TestCase
     $response = $this->postJson('/api/v1/materials', [
       'name' => 'Bad color material',
       'material_group' => 'wood',
+      'purpose' => 'board',
       'stock_unit' => 'm2',
       'color_hex' => 'not-a-color',
     ]);
@@ -286,6 +291,7 @@ class MaterialApiTest extends TestCase
     $response = $this->call('POST', '/api/v1/materials', [
       'name' => 'Bad texture material',
       'material_group' => 'wood',
+      'purpose' => 'board',
       'stock_unit' => 'm2',
     ], [], ['texture' => $file], ['HTTP_ACCEPT' => 'application/json']);
 
@@ -306,6 +312,7 @@ class MaterialApiTest extends TestCase
     $response = $this->call('POST', '/api/v1/materials', [
       'name' => 'Huge texture material',
       'material_group' => 'wood',
+      'purpose' => 'board',
       'stock_unit' => 'm2',
     ], [], ['texture' => $file], ['HTTP_ACCEPT' => 'application/json']);
 
@@ -382,5 +389,53 @@ class MaterialApiTest extends TestCase
     $material->refresh();
     $this->assertNull($material->texture_path);
     Storage::disk('public')->assertMissing($path);
+  }
+
+  public function test_can_create_material_with_valid_purpose(): void
+  {
+    $response = $this->postJson('/api/v1/materials', [
+      'name' => 'Board material',
+      'material_group' => 'wood',
+      'purpose' => 'board',
+      'stock_unit' => 'm2',
+    ]);
+
+    $response->assertCreated()
+      ->assertJsonPath('purpose', 'board');
+
+    $this->assertDatabaseHas('materials', [
+      'name' => 'Board material',
+      'purpose' => 'board',
+    ]);
+  }
+
+  public function test_creating_material_rejects_invalid_purpose(): void
+  {
+    $response = $this->postJson('/api/v1/materials', [
+      'name' => 'Bad purpose material',
+      'material_group' => 'wood',
+      'purpose' => 'spacer',
+      'stock_unit' => 'm2',
+    ]);
+
+    $response->assertUnprocessable()
+      ->assertJsonValidationErrors(['purpose']);
+  }
+
+  public function test_can_update_material_purpose(): void
+  {
+    $material = Material::factory()->create(['purpose' => 'general']);
+
+    $response = $this->putJson("/api/v1/materials/{$material->id}", [
+      'purpose' => 'handle',
+    ]);
+
+    $response->assertOk()
+      ->assertJsonPath('purpose', 'handle');
+
+    $this->assertDatabaseHas('materials', [
+      'id' => $material->id,
+      'purpose' => 'handle',
+    ]);
   }
 }

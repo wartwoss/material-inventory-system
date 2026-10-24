@@ -54,6 +54,7 @@ class FurnitureModelApiTest extends TestCase
             'code' => 'top',
             'name' => 'Tabletop',
             'material_group' => 'wood',
+            'compatible_purposes' => ['board'],
             'consumption_unit' => 'm2',
             'formula_key' => 'panel_area_m2',
             'formula_parameters' => ['waste_factor' => 1.15],
@@ -63,6 +64,7 @@ class FurnitureModelApiTest extends TestCase
         $oak = Material::factory()->create([
             'name' => 'Oak board',
             'material_group' => 'wood',
+            'purpose' => 'board',
             'stock_unit' => 'm2',
             'is_active' => true,
         ]);
@@ -70,6 +72,7 @@ class FurnitureModelApiTest extends TestCase
         Material::factory()->create([
             'name' => 'Pine legs',
             'material_group' => 'wood',
+            'purpose' => 'leg',
             'stock_unit' => 'm3',
             'is_active' => true,
         ]);
@@ -92,13 +95,16 @@ class FurnitureModelApiTest extends TestCase
         ModelPart::factory()->create([
             'furniture_model_id' => $model->id,
             'code' => 'top',
+            'name' => 'Top',
             'material_group' => 'wood',
+            'compatible_purposes' => ['board'],
             'consumption_unit' => 'm2',
         ]);
 
         $compatible = Material::factory()->create([
             'name' => 'Oak board',
             'material_group' => 'wood',
+            'purpose' => 'board',
             'stock_unit' => 'm2',
             'is_active' => true,
         ]);
@@ -106,13 +112,23 @@ class FurnitureModelApiTest extends TestCase
         Material::factory()->create([
             'name' => 'Wrong unit wood',
             'material_group' => 'wood',
+            'purpose' => 'board',
             'stock_unit' => 'm3',
+            'is_active' => true,
+        ]);
+
+        Material::factory()->create([
+            'name' => 'Wrong purpose m2',
+            'material_group' => 'wood',
+            'purpose' => 'leg',
+            'stock_unit' => 'm2',
             'is_active' => true,
         ]);
 
         Material::factory()->create([
             'name' => 'Wrong group m2',
             'material_group' => 'metal',
+            'purpose' => 'board',
             'stock_unit' => 'm2',
             'is_active' => true,
         ]);
@@ -120,6 +136,7 @@ class FurnitureModelApiTest extends TestCase
         Material::factory()->create([
             'name' => 'Inactive oak',
             'material_group' => 'wood',
+            'purpose' => 'board',
             'stock_unit' => 'm2',
             'is_active' => false,
         ]);
@@ -191,6 +208,97 @@ class FurnitureModelApiTest extends TestCase
 
         foreach ($carcass['allowed_materials'] as $material) {
             $this->assertSame('wood', $material['material_group']);
+            $this->assertSame('m3', $material['stock_unit']);
+            $this->assertSame('board', $material['purpose']);
+        }
+    }
+
+    public function test_bedside_cabinet_door_only_returns_board_materials(): void
+    {
+        $this->seed([
+            \Database\Seeders\MaterialSeeder::class,
+            \Database\Seeders\FurnitureModelSeeder::class,
+            \Database\Seeders\ModelPartSeeder::class,
+        ]);
+
+        $response = $this->getJson('/api/v1/furniture-models/bedside-cabinet');
+
+        $response->assertOk();
+
+        $door = collect($response->json('parts'))->firstWhere('code', 'door');
+
+        $this->assertNotEmpty($door['allowed_materials']);
+
+        foreach ($door['allowed_materials'] as $material) {
+            $this->assertSame('board', $material['purpose']);
+            $this->assertSame('m2', $material['stock_unit']);
+        }
+    }
+
+    public function test_bedside_cabinet_legs_only_returns_leg_materials(): void
+    {
+        $this->seed([
+            \Database\Seeders\MaterialSeeder::class,
+            \Database\Seeders\FurnitureModelSeeder::class,
+            \Database\Seeders\ModelPartSeeder::class,
+        ]);
+
+        $response = $this->getJson('/api/v1/furniture-models/bedside-cabinet');
+
+        $response->assertOk();
+
+        // There is no separate legs part on the bedside cabinet; verify the table legs part.
+        $table = $this->getJson('/api/v1/furniture-models/table')->json('parts');
+        $legs = collect($table)->firstWhere('code', 'legs');
+
+        $this->assertNotEmpty($legs['allowed_materials']);
+
+        foreach ($legs['allowed_materials'] as $material) {
+            $this->assertSame('leg', $material['purpose']);
+            $this->assertSame('m3', $material['stock_unit']);
+        }
+    }
+
+    public function test_bedside_cabinet_handle_only_returns_handle_materials(): void
+    {
+        $this->seed([
+            \Database\Seeders\MaterialSeeder::class,
+            \Database\Seeders\FurnitureModelSeeder::class,
+            \Database\Seeders\ModelPartSeeder::class,
+        ]);
+
+        $response = $this->getJson('/api/v1/furniture-models/bedside-cabinet');
+
+        $response->assertOk();
+
+        $handle = collect($response->json('parts'))->firstWhere('code', 'handle');
+
+        $this->assertNotEmpty($handle['allowed_materials']);
+
+        foreach ($handle['allowed_materials'] as $material) {
+            $this->assertSame('handle', $material['purpose']);
+            $this->assertSame('ea', $material['stock_unit']);
+        }
+    }
+
+    public function test_bedside_cabinet_feet_only_returns_foot_materials(): void
+    {
+        $this->seed([
+            \Database\Seeders\MaterialSeeder::class,
+            \Database\Seeders\FurnitureModelSeeder::class,
+            \Database\Seeders\ModelPartSeeder::class,
+        ]);
+
+        $response = $this->getJson('/api/v1/furniture-models/bedside-cabinet');
+
+        $response->assertOk();
+
+        $feet = collect($response->json('parts'))->firstWhere('code', 'feet');
+
+        $this->assertNotEmpty($feet['allowed_materials']);
+
+        foreach ($feet['allowed_materials'] as $material) {
+            $this->assertSame('foot', $material['purpose']);
             $this->assertSame('m3', $material['stock_unit']);
         }
     }

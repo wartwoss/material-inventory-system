@@ -22,6 +22,7 @@ class ModelPartSeeder extends Seeder
                     'code' => 'top',
                     'name' => 'Tabletop',
                     'material_group' => 'wood',
+                    'compatible_purposes' => ['board'],
                     'consumption_unit' => 'm2',
                     'formula_key' => 'panel_area_m2',
                     'formula_parameters' => [
@@ -35,6 +36,7 @@ class ModelPartSeeder extends Seeder
                     'code' => 'legs',
                     'name' => 'Legs',
                     'material_group' => 'wood',
+                    'compatible_purposes' => ['leg'],
                     'consumption_unit' => 'm3',
                     'formula_key' => 'solid_volume_m3',
                     'formula_parameters' => [
@@ -53,6 +55,7 @@ class ModelPartSeeder extends Seeder
                     'code' => 'carcass',
                     'name' => 'Carcass',
                     'material_group' => 'wood',
+                    'compatible_purposes' => ['board'],
                     'consumption_unit' => 'm3',
                     'formula_key' => 'cabinet_carcass_m3',
                     'formula_parameters' => [
@@ -66,6 +69,7 @@ class ModelPartSeeder extends Seeder
                     'code' => 'door',
                     'name' => 'Door / drawer front',
                     'material_group' => 'wood',
+                    'compatible_purposes' => ['board'],
                     'consumption_unit' => 'm2',
                     'formula_key' => 'panel_area_m2',
                     'formula_parameters' => [
@@ -79,6 +83,7 @@ class ModelPartSeeder extends Seeder
                     'code' => 'handle',
                     'name' => 'Handle',
                     'material_group' => 'metal',
+                    'compatible_purposes' => ['handle'],
                     'consumption_unit' => 'ea',
                     'formula_key' => 'fixed_each',
                     'formula_parameters' => [
@@ -91,6 +96,7 @@ class ModelPartSeeder extends Seeder
                     'code' => 'feet',
                     'name' => 'Feet',
                     'material_group' => 'wood',
+                    'compatible_purposes' => ['foot'],
                     'consumption_unit' => 'm3',
                     'formula_key' => 'solid_volume_m3',
                     'formula_parameters' => [
